@@ -73,12 +73,49 @@ must never contain any of it.**
 
 ## Getting started
 
-*(Fill in as components come online.)*
+### Clone
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/AeroFlaire/muster.git
 cd muster
-# build/run instructions per subsystem — see each zone's README
+```
+
+### Prerequisites
+
+
+- git
+- Runtime for the Gatekeeper/Vault backend — TBD (e.g. Python 3.x or Node.x)
+- Runtime for the phone check-in app — TBD (e.g. Node.x / Expo)
+- A database for the Vault — TBD
+
+### Build & run by zone
+
+Each zone runs independently so the team can work in parallel. Commands are placeholders
+until each subsystem lands its code — replace the TBDs as you build.
+
+**Zone 2 — Gatekeeper** (verification server)
+```bash
+cd gatekeeper
+# TODO: install deps + start the server
+```
+
+**Zone 3 — Vault** (encrypted records + audit log)
+```bash
+cd vault
+# TODO: init the database, apply schema/migrations, start the service
+```
+
+**Zone 1 — Edge** (NFC reader / arms-room station / phone app)
+```bash
+cd edge/phone-app
+# TODO: install deps + run the app
+```
+
+### Tests
+
+```bash
+cd tests
+# TODO: run the evaluation-plan tests (Tests 1–4). Synthetic data only — no real PII.
 ```
 
 ---
@@ -92,7 +129,6 @@ cd muster
 | Vault         | TBD     | TBD       |
 | Docs / PDR    | TBD     | TBD       |
 
-*(Mirror this in the PDR responsibility matrix.)*
 
 ---
 
