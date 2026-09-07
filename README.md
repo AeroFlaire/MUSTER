@@ -56,21 +56,6 @@ muster/
 
 ---
 
-## Security notice — read before your first commit
-
-This project handles PII categories (DoD ID, FASC-N) by design. The **repo itself
-must never contain any of it.**
-
-- **No secrets in the repo.** Keys, certificates, `.env` files, and credentials are
-  gitignored. Once something is committed it stays in git history even after deletion —
-  keep it out from commit #1.
-- **Synthetic test data only.** Never put real DoD IDs, FASC-Ns, or cadet PII in
-  `tests/` or anywhere else. Use clearly-marked fake values.
-- **This is unclassified coursework.** Keep it that way. If a design detail feels like
-  it shouldn't be in a public/class repo, ask before committing.
-
----
-
 ## Getting started
 
 ### Clone
