@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# SECRETS & SENSITIVE DATA — keep these out from the very first commit.
+# Anything committed stays in git history even after deletion.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+*.crt
+*.cer
+*.der
+secrets/
+credentials/
+*.secret
+config.local.*
+
+# Real PII / card data must NEVER be committed. Use synthetic data only.
+# These patterns catch common accidental dumps.
+*dod-id*
+*dodid*
+*fascn*
+*fasc-n*
+*cac-dump*
+*.pii
+real-data/
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ---------------------------------------------------------------------------
+# Node / phone app
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+build/
+.expo/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------------------------------------------------------------------------
+# Databases & local artifacts
+# ---------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.db
+local-db/
+*.bak
+
+# ---------------------------------------------------------------------------
+# IDE / OS
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
