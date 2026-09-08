@@ -109,10 +109,10 @@ cd tests
 
 | Zone / Module | Primary | Alternate |
 |---------------|---------|-----------|
-| Edge          | TBD     | TBD       |
-| Gatekeeper    | TBD     | TBD       |
-| Vault         | TBD     | TBD       |
-| Physical      | TBD     | TBD       |
+| Edge          | Rhemmy  | Alena     |
+| Gatekeeper    | Alena   | Rhemmy    |
+| Vault         | Arjo    | Q         |
+| Physical      | Q       | Arjo      |
 
 
 ---
