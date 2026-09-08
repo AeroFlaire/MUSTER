@@ -112,7 +112,7 @@ cd tests
 | Edge          | TBD     | TBD       |
 | Gatekeeper    | TBD     | TBD       |
 | Vault         | TBD     | TBD       |
-| Docs / PDR    | TBD     | TBD       |
+| Physical      | TBD     | TBD       |
 
 
 ---
