@@ -1,4 +1,4 @@
-#include <windows.h>
+#include <windows.h> //Gemini Pro
 #include <bcrypt.h>
 #include <string.h>
 #include <ctype.h>

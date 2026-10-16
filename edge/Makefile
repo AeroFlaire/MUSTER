@@ -1,4 +1,4 @@
-# Compiler settings
+# Compiler settings //Gemini Pro
 CC = gcc
 CFLAGS = -Wall -g
 
