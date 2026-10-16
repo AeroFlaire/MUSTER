@@ -1,75 +1,64 @@
 #include <windows.h>
 #include <bcrypt.h>
-#include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 
-// Automatically link the CNG library if using the Microsoft compiler (MSVC)
 #pragma comment(lib, "bcrypt.lib")
 
-// The secret key for the Vault Gatekeeper. 
-// Note: In production, load this from a secure config file or environment variable.
+// UI Element IDs
+#define IDC_INPUT_BARCODE 1001
+#define IDC_OUTPUT_CADET  1002
+#define IDC_BTN_PROCESS   1003
+
+// Global Window Handles
+HWND hInputBox;
+HWND hOutputField;
+HWND hProcessBtn;
+
 const char* MUSTER_EDIPI_KEY = "super_secret_muster_edipi_key_32_chars+";
 
 // ---------------------------------------------------------
-// 1. Parser: Extract the 10-digit DoD ID (EDIPI)
+// 1. Core Logic: Parse, Hash, and Wipe
 // ---------------------------------------------------------
 int ExtractDoDID(const char* rawBarcode, char* outputId) {
     int len = strlen(rawBarcode);
     int consecutiveDigits = 0;
-    
     for (int i = 0; i < len; i++) {
         if (isdigit(rawBarcode[i])) {
             consecutiveDigits++;
             if (consecutiveDigits == 10) {
-                // We found 10 consecutive digits. Copy them.
                 strncpy(outputId, &rawBarcode[i - 9], 10);
                 outputId[10] = '\0';
-                return 1; // Success
+                return 1;
             }
         } else {
-            consecutiveDigits = 0; // Reset if we hit a letter or delimiter
+            consecutiveDigits = 0;
         }
     }
-    return 0; // Failed to find a 10-digit ID
+    return 0;
 }
 
-// ---------------------------------------------------------
-// 2. Hasher: Compute HMAC-SHA256 using the MUSTER secret
-// ---------------------------------------------------------
 int ComputeHMACSHA256(const char* inputData, const char* secretKey, char* outputHashHex) {
     BCRYPT_ALG_HANDLE hAlg = NULL;
     BCRYPT_HASH_HANDLE hHash = NULL;
-    DWORD cbHashObject = 0;
-    DWORD cbData = 0;
+    DWORD cbHashObject = 0, cbData = 0;
     PBYTE pbHashObject = NULL;
-    BYTE pbHash[32]; // SHA-256 outputs 32 bytes
+    BYTE pbHash[32];
     int success = 0;
 
-    // Open an algorithm handle for SHA256 with the HMAC flag
     if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, NULL, BCRYPT_ALG_HANDLE_HMAC_FLAG) >= 0) {
-        
-        // Determine the size of the hash object memory needed
         if (BCryptGetProperty(hAlg, BCRYPT_OBJECT_LENGTH, (PBYTE)&cbHashObject, sizeof(DWORD), &cbData, 0) >= 0) {
             pbHashObject = (PBYTE)HeapAlloc(GetProcessHeap(), 0, cbHashObject);
-            
             if (pbHashObject != NULL) {
-                // Initialize the hash with the MUSTER_EDIPI_KEY
                 if (BCryptCreateHash(hAlg, &hHash, pbHashObject, cbHashObject, (PUCHAR)secretKey, (ULONG)strlen(secretKey), 0) >= 0) {
-                    
-                    // Feed the plaintext EDIPI into the HMAC
                     if (BCryptHashData(hHash, (PUCHAR)inputData, (ULONG)strlen(inputData), 0) >= 0) {
-                        
-                        // Finalize and extract the 32-byte HMAC
                         if (BCryptFinishHash(hHash, pbHash, sizeof(pbHash), 0) >= 0) {
-                            
-                            // Convert the raw bytes to a readable hex string for the Vault Gatekeeper
                             const char hexChars[] = "0123456789abcdef";
                             for (int i = 0; i < 32; i++) {
                                 outputHashHex[i * 2] = hexChars[(pbHash[i] >> 4) & 0x0F];
                                 outputHashHex[i * 2 + 1] = hexChars[pbHash[i] & 0x0F];
                             }
-                            outputHashHex[64] = '\0'; // Null-terminate the 64-character hex string
+                            outputHashHex[64] = '\0';
                             success = 1;
                         }
                     }
@@ -84,35 +73,57 @@ int ComputeHMACSHA256(const char* inputData, const char* secretKey, char* output
 }
 
 // ---------------------------------------------------------
-// 3. Main Security Controller (PBI-04 L24)
+// 2. UI Event Handler
 // ---------------------------------------------------------
-void ProcessCACBarcode(char* rawScannerInput) {
-    char extractedId[11];      // 10 digits + null terminator
-    char hmacHex[65];          // 64 hex chars for HMAC-SHA256 + null terminator
+void HandleScanEvent() {
+    // Allocate a buffer large enough for a massive PDF417 string
+    char rawInput[2048] = {0}; 
+    char extractedId[11] = {0};
+    char hmacHex[65] = {0};
 
-    printf("Processing incoming CAC scan...\n");
+    // Pull the pasted string from the input box
+    GetWindowText(hInputBox, rawInput, sizeof(rawInput));
 
-    // Step 1: Parse the EDIPI from the PDF417 wedge string
-    if (ExtractDoDID(rawScannerInput, extractedId)) {
-        
-        // Step 2: Hash the ID with the Vault secret key
+    // Process it
+    if (ExtractDoDID(rawInput, extractedId)) {
         if (ComputeHMACSHA256(extractedId, MUSTER_EDIPI_KEY, hmacHex)) {
-            
-            // hmacHex is now the secure, append-only ready token
-            printf("Success! EDIPI HMAC generated: %s\n", hmacHex);
-            
-            // -> PASS hmacHex TO YOUR UI OR NETWORK FUNCTION HERE <-
-            
+            // Fill the "cadet field" with the secure hashed ID
+            SetWindowText(hOutputField, hmacHex);
         } else {
-            printf("Error: HMAC computation failed.\n");
+            SetWindowText(hOutputField, "Error: HMAC Computation Failed");
         }
     } else {
-        printf("Error: Could not locate a valid 10-digit EDIPI in the barcode string.\n");
+        SetWindowText(hOutputField, "Error: No 10-digit EDIPI found in string");
     }
 
-    // Step 3: SECURE CLEANUP (Append-only / Zero-trust compliance)
-    // SecureZeroMemory physically prevents the compiler from optimizing away the wipe,
-    // ensuring the plaintext EDIPI and the raw PDF417 string are permanently gone from RAM.
-    SecureZeroMemory(rawScannerInput, strlen(rawScannerInput));
+    // SECURE WIPE: Destroy the raw string and plaintext ID from RAM
+    SecureZeroMemory(rawInput, sizeof(rawInput));
     SecureZeroMemory(extractedId, sizeof(extractedId));
+    
+    // Clear the input box so the raw string is not left sitting in the UI
+    SetWindowText(hInputBox, "");
 }
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch (uMsg) {
+        case WM_CREATE:
+            CreateWindow("STATIC", "1. Paste Raw Barcode Here:", WS_CHILD | WS_VISIBLE, 20, 20, 200, 20, hwnd, NULL, NULL, NULL);
+            hInputBox = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", "", WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL, 20, 45, 300, 25, hwnd, (HMENU)IDC_INPUT_BARCODE, NULL, NULL);
+            
+            hProcessBtn = CreateWindow("BUTTON", "Process Scan", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 20, 80, 150, 30, hwnd, (HMENU)IDC_BTN_PROCESS, NULL, NULL);
+            
+            CreateWindow("STATIC", "2. Cadet Field (Hashed ID):", WS_CHILD | WS_VISIBLE, 20, 130, 200, 20, hwnd, NULL, NULL, NULL);
+            hOutputField = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", "", WS_CHILD | WS_VISIBLE | ES_READONLY | ES_AUTOHSCROLL, 20, 155, 450, 25, hwnd, (HMENU)IDC_OUTPUT_CADET, NULL, NULL);
+            break;
+
+        case WM_COMMAND:
+            if (LOWORD(wParam) == IDC_BTN_PROCESS) {
+                HandleScanEvent();
+            }
+            break;
+
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+    }
+    return DefWindowProc(hwnd, uMsg
