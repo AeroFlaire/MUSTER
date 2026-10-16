@@ -2,29 +2,46 @@
 
 **Modern Unified System for Tracking, Evaluation, and Reporting**
 
-MUSTER replaces three manual workflows — classroom attendance, ACFT/IOCT fitness
-scoring, and arms-room Sensitive Item (SI) accountability — with a single automated
-system. A cadet authenticates with their CAC over NFC, and the system produces
-trustworthy, tamper-evident records for instructors, AMS, and arms-room personnel.
+MUSTER replaces manual paper workflows with trustworthy, tamper-evident digital records.
+In priority order of stakeholder:
+
+1. **Fitness scoring — AFT and IOCT** (primary: DPE)
+2. **Classroom attendance** (secondary: Dean)
+3. **Arms-room Sensitive Item accountability** (tertiary: arms room)
 
 The core design principle is **trust nothing at the tap.** A convenient record that
-is easy to forge would be worse than paper, because it would let false entries through.
-Every scan is treated as a claim to be verified, not as proof.
+is easy to forge is worse than paper. Every scan is a *claim* to be verified, and
+anything that matters is signed by the cadet's own CAC.
 
 ---
 
-## Architecture at a glance
+## How it works
 
-MUSTER is organized into three zones. The repo folders mirror these zones so work
-can be split cleanly across the team.
+| Function | Identify the cadet | Prove it / agree to it |
+|---|---|---|
+| **AFT** | Grader scans CAC barcode | Cadet signs scorecard at the score compiler (CAC + PIN) |
+| **IOCT** | Grader pairs RFID wristband to cadet (CAC barcode) | Gates record raw times; cadet signs their time at the score compiler |
+| **Attendance** | Instructor scans CAC barcode | Instructor's own eyes (low assurance, by design) |
+| **Arms room** | — | Cadet signs the sign-out record (CAC + PIN) |
+
+The CAC signature uses the card's PIV Authentication key through a **contact** reader.
+MUSTER never sees the PIN. Signatures are checked against the public key recorded
+when the cadet **enrolled**, so no live DoD PKI connection is needed.
+
+> **Status:** the signing path is tested with software keys. It has **not** yet been
+> tested on a real CAC (needs a non-GFE laptop for OpenSC). First Sprint 1 task.
+
+---
+
+## Architecture — one app, three trust zones
 
 | Zone | Name | Trust | What lives here |
 |------|------|-------|-----------------|
-| 1 | **Edge** | Not trusted | NFC reader, arms-room station, phone check-in app. Where cadets tap in. Every tap is treated as a claim to be checked. |
-| 2 | **Gatekeeper** | Verifies | Checks every request: is the cadet enrolled? does this action need a PIN? is the phone really on the classroom network (server-verified)? Buffers records if the network drops. |
-| 3 | **Vault** | Trusted | Fully encrypted records, role-based access, tamper-evident audit log, and score push to AMS. |
+| 1 | **Edge** | Not trusted | Grader app, score compiler station, IOCT gates, attendance scanner, arms-room station. Sends claims. |
+| 2 | **Gatekeeper** | Verifies | API (TLS 1.3). Checks roles, parses barcodes, hashes EDIPIs, verifies CAC signatures, buffers during outages. The only caller of the Vault. |
+| 3 | **Vault** | Trusted | SQLite records + append-only hash-chained audit log. Exports signed scores to DPE/AMS. |
 
-See `docs/architecture/` for the block diagrams.
+See `docs/architecture/overview.md`.
 
 ---
 
@@ -33,75 +50,44 @@ See `docs/architecture/` for the block diagrams.
 ```
 muster/
 ├── docs/
-│   ├── design-proposals/   Individual design proposals (team members')
-│   ├── requirements/       Requirements traceability (SR-1…SR-5 → spec → test)
-│   ├── architecture/       System block diagrams (source + exports)
-│   ├── interfaces/         Interface definitions (ICDs)
-│   └── logo/               Project logo for the PDR title slide
-├── edge/                   ZONE 1 — untrusted edge devices
-│   ├── nfc-reader/         CAC-over-NFC read path
-│   ├── arms-room/          Arms-room station (weapon sign-out, PIN-gated)
-│   └── phone-app/          Mobile check-in (backup attendance path)
-├── gatekeeper/             ZONE 2 — verification layer
-│   ├── auth/               Enrollment check, PIN handling for high-stakes actions
-│   ├── policy/             Request rules, server-side location verification
-│   └── offline-sync/       Local buffering + sync on network restore
-├── vault/                  ZONE 3 — trusted records
-│   ├── db/                 Encrypted database, retention policy
-│   ├── audit-log/          Tamper-evident SI event log
-│   └── ams-integration/    Score push to AMS
-├── tests/                  Evaluation plan (Tests 1–4)
-└── scripts/                Setup / build / utility scripts
+│   ├── architecture/        System overview and block diagrams
+│   ├── design/              Authentication, audit log, fitness flow
+│   ├── requirements/        Traceability (SR-1…SR-6 → spec → test)
+│   ├── interfaces/          Interface definitions (ICDs)
+│   ├── design-proposals/    Individual design proposals
+│   └── logo/
+├── edge/                    ZONE 1 — untrusted
+│   ├── fitness-grader/      AFT grader web app
+│   ├── score-compiler/      Cadet review + CAC signing station (AFT and IOCT)
+│   ├── ioct-gates/          RFID start/end gates + wristbands
+│   ├── attendance/          Classroom barcode scanning
+│   └── arms-room/           Weapon sign-out station
+├── gatekeeper/              ZONE 2 — verification layer
+│   ├── api/
+│   ├── auth/
+│   └── offline-sync/
+├── vault/                   ZONE 3 — trusted records (Python package: muster_vault)
+│   ├── muster_vault/
+│   └── tests/
+└── scripts/
+    └── vault_demo.py        End-to-end demo with tamper attacks
 ```
 
 ---
 
 ## Getting started
 
-### Clone
-
 ```bash
-git clone https://github.com/AeroFlaire/muster.git
-cd muster
+git clone https://github.com/AeroFlaire/MUSTER.git
+cd MUSTER/vault
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+pytest
+python ../scripts/vault_demo.py
 ```
 
-### Prerequisites
-
-
-- git
-- Runtime for the Gatekeeper/Vault backend — TBD (e.g. Python 3.x or Node.x)
-- Runtime for the phone check-in app — TBD (e.g. Node.x / Expo)
-- A database for the Vault — TBD
-
-### Build & run by zone
-
-Each zone runs independently so the team can work in parallel. Commands are placeholders
-until each subsystem lands its code — replace the TBDs as you build.
-
-**Zone 2 — Gatekeeper** (verification server)
-```bash
-cd gatekeeper
-# TODO: install deps + start the server
-```
-
-**Zone 3 — Vault** (encrypted records + audit log)
-```bash
-cd vault
-# TODO: init the database, apply schema/migrations, start the service
-```
-
-**Zone 1 — Edge** (NFC reader / arms-room station / phone app)
-```bash
-cd edge/phone-app
-# TODO: install deps + run the app
-```
-
-### Tests
-
-```bash
-cd tests
-# TODO: run the evaluation-plan tests (Tests 1–4). Synthetic data only — no real PII.
-```
+**Prerequisites:** Python 3.10+, git. Synthetic data only — never commit real PII
+or card data (`.gitignore` blocks common patterns).
 
 ---
 
@@ -113,7 +99,6 @@ cd tests
 | Gatekeeper    | Alena   | Rhemmy    |
 | Vault         | Arjo    | Q         |
 | Physical      | Q       | Arjo      |
-
 
 ---
 
