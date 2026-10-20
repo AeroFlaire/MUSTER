@@ -1,14 +1,18 @@
-# Gatekeeper stub API (contract v0)
+# Gatekeeper stub API (contract v0, revision 2)
 
 PBI-03 L23. Owner: Alena. Zone 2 (Gatekeeper). Lives in `gatekeeper/api/`.
 
 A running API where every v0 endpoint returns its canned example from
 `docs/interfaces/api-contract-v0.md`, so Edge, Vault, and the timing gate can
-build against it right away. It is a stub:
+build against it right away. The endpoints follow the Vault call for call
+(`fitness.py`, `ioct.py`, `audit.py`).
+
+It is a stub:
 
 - Nothing is stored, and responses do not change with the request body.
-- The caller's role comes from the `X-Role` header. This is a stand-in. The real
-  mechanism is open item 3 in the contract. Edge must never be the source of a role.
+- The caller's role comes from the `X-Role` header, using the Vault's role names.
+  This is a stand-in. The real mechanism is open item 2 in the contract. Edge must
+  never be the source of a role.
 - Requests are validated and rejected the way the real API will reject them, so
   Edge can build its error screens now.
 
@@ -24,37 +28,54 @@ build against it right away. It is a stub:
     # or, if you use pytest like the Vault does:
     python -m pytest -v
 
+The tests check every endpoint against its example, the role table, validation,
+the audit hash formula, and that every example appears in the contract.
+
 ## Headers
 
 | Header | Needed | Notes |
 |---|---|---|
 | X-Contract-Version | always | Must be `v0`, else 400 `unsupported_contract_version` |
-| X-Role | always | `grader`, `cadre`, `cadet`, or `timing_gate`. Missing, unknown, or wrong is 403 `forbidden_role` |
-| X-Cadet-Id-Hash | cadet only | Stub for "own record only". A cadet asking for another cadet's record gets 404 |
+| X-Role | always | admin, oic, grader, compiler_station, gate_station, instructor, or arms_nco. Missing, unknown (for example `cadet`), or not allowed is 403 `forbidden_role` |
+| X-Stub-Scenario | optional | Forces an error after the role and body checks pass: not_found, invalid_transition, challenge_invalid, signature_invalid, timing_error, internal_error. For building error screens |
+
+## Ids in the examples
+
+AFT session 7, IOCT session 8, AFT event 11, IOCT event 12, wristband `TAG-017`.
+Any other id returns 404 `not_found`.
 
 ## Endpoints
 
-| Method and path | Roles | Returns |
-|---|---|---|
-| GET /v0/health | all | `{"status":"ok", ...}` |
-| POST /v0/fitness-records | grader | 201, `examples/fitness_record_response.json` |
-| GET /v0/fitness-records/{record_id} | grader, cadre, cadet (own) | 200, same record. Use id `b2d1a9c4-0f6e-4e35-8f02-77a5c3e10d21` |
-| GET /v0/cadets/{cadet_id_hash}/fitness-records | grader, cadre, cadet (own) | 200, list with the example record |
-| POST /v0/ioct-timings | timing_gate | 201, `examples/ioct_timing_response.json` |
-| GET /v0/audit/events | cadre | 200, list with the example audit event |
-| GET /v0/audit/verify | cadre | 200, `{"result":"PASS","entries_checked":42}` |
+See contract section 2 for the full table with roles. In order of use:
 
-PUT, PATCH, and DELETE on anything return 405 `method_not_allowed` (append only).
+| AFT flow | |
+|---|---|
+| POST /v0/sessions | open a session (oic, admin) |
+| POST /v0/sessions/7/events | scan a cadet, open an AFT event (grader, oic) |
+| POST /v0/events/11/components | enter MDL, HRP, SDC, PLK, 2MR (grader, oic) |
+| POST /v0/events/11/submit | send to the score compiler (grader, oic) |
+| POST /v0/events/11/cadet-challenge | get the bytes the cadet signs (compiler_station, oic) |
+| POST /v0/events/11/accept | cadet signature in, event SIGNED (compiler_station, oic) |
+
+| IOCT flow | |
+|---|---|
+| POST /v0/sessions/8/ioct/pair | pair a wristband to a cadet (grader, oic) |
+| POST /v0/sessions/8/gate-reads | raw gate read (gate_station, oic) |
+| POST /v0/events/12/ioct/compute | the Vault computes the time (grader, compiler_station, oic) |
+
+Also: close session, dispute, reopen, supersede, get event, verify event, tag lookup,
+and the three audit endpoints. PUT, PATCH, and DELETE return 405 (append only).
 
 Try it:
 
-    curl -X POST http://127.0.0.1:5000/v0/fitness-records \
+    curl -X POST http://127.0.0.1:5000/v0/sessions/7/events \
       -H 'Content-Type: application/json' \
       -H 'X-Contract-Version: v0' -H 'X-Role: grader' \
-      --data @examples/fitness_record_request.json
+      --data @examples/event_open_request.json
 
-## What the stub does not do yet
+## What the stub does not do
 
-- No Vault, no audit chain, no idempotency handling. Those come in L24 and later.
-- Scores are the placeholder values from the contract (`table_version: PLACEHOLDER-v0`).
-- No 401. Until the real auth exists, no role means 403, as in contract section 2.
+- No Vault, no real audit chain, no real signature check, no barcode parsing or hashing.
+  The audit example was made with the Vault's own hashing code, so it is a valid chain.
+- Points in the examples are invented placeholders until the DPE scoring RFI closes.
+- No 401. Until real auth exists, no role means 403.

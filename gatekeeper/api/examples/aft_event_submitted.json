@@ -1,0 +1,43 @@
+{
+  "event_id": 11,
+  "status": "SUBMITTED",
+  "scorecard": {
+    "event_id": 11,
+    "test_type": "AFT",
+    "session_id": 7,
+    "session_date": "2026-10-22",
+    "location": "Test Gym",
+    "cadet_edipi_hash": "36b5084b6d28f0a06f98200ce4934df8857944b7870d7b96e7d4cf2fb369d510",
+    "cadet_name": "Alpha, Cadet",
+    "grader_id": 3,
+    "supersedes_event_id": null,
+    "components": [
+      {
+        "component": "2MR",
+        "raw_value": "13:15",
+        "points": 100
+      },
+      {
+        "component": "HRP",
+        "raw_value": "60",
+        "points": 100
+      },
+      {
+        "component": "MDL",
+        "raw_value": "340",
+        "points": 100
+      },
+      {
+        "component": "PLK",
+        "raw_value": "3:40",
+        "points": 100
+      },
+      {
+        "component": "SDC",
+        "raw_value": "1:30",
+        "points": 100
+      }
+    ],
+    "total_points": 500
+  }
+}

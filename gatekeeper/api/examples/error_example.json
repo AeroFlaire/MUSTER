@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "forbidden_role",
+    "message": "Role 'compiler_station' may not call this endpoint.",
+    "request_id": "req_9A1C3E7B20"
+  }
+}

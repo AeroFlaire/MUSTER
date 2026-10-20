@@ -1,0 +1,30 @@
+{
+  "entity_type": "fitness_event",
+  "entity_id": 11,
+  "entries": [
+    {
+      "seq": 2,
+      "ts": "2026-10-22T13:02:11.480Z",
+      "function": "FITNESS",
+      "action": "EVENT_OPENED",
+      "actor_id": 3,
+      "entity_type": "fitness_event",
+      "entity_id": 11,
+      "data": "{\"cadet_id\":1,\"client_ref\":\"6f1c2b0e-3d44-4a8e-9b7a-2c1d5e8f9a10\",\"session_id\":7,\"supersedes_event_id\":null,\"test_type\":\"AFT\"}",
+      "prev_hash": "cafa8e1bc7ae4898d85ef8db7cb177e4363faedc49fd29f83934acd63ec3df90",
+      "entry_hash": "f93810c238f56f20c5d61e16cc9fd7c937f0f3861719b55088f341b3d8c5b00a"
+    },
+    {
+      "seq": 3,
+      "ts": "2026-10-22T13:04:30.915Z",
+      "function": "FITNESS",
+      "action": "COMPONENT_ENTERED",
+      "actor_id": 3,
+      "entity_type": "fitness_event",
+      "entity_id": 11,
+      "data": "{\"component\":\"MDL\",\"points\":100,\"raw_value\":\"340\"}",
+      "prev_hash": "f93810c238f56f20c5d61e16cc9fd7c937f0f3861719b55088f341b3d8c5b00a",
+      "entry_hash": "f2c429a7ceeb4fd5ee0cc4910ed1643656438faa8c4f182384b3456ec33528da"
+    }
+  ]
+}

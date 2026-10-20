@@ -1,0 +1,16 @@
+{
+  "event_id": 12,
+  "status": "ENTERED",
+  "scorecard": {
+    "event_id": 12,
+    "test_type": "IOCT",
+    "session_id": 8,
+    "session_date": "2026-10-22",
+    "location": "Test Gym",
+    "cadet_edipi_hash": "36b5084b6d28f0a06f98200ce4934df8857944b7870d7b96e7d4cf2fb369d510",
+    "cadet_name": "Alpha, Cadet",
+    "grader_id": 3,
+    "supersedes_event_id": null,
+    "ioct": null
+  }
+}
