@@ -8,7 +8,8 @@ zones can build against it right away. This is a STUB:
   (admin, oic, grader, compiler_station, gate_station, instructor, arms_nco).
   The real mechanism (a session mapped to a Vault app_user id) is an open item.
 - Requests are validated and rejected the way the real API will reject them, so
-  Edge can build its error screens now. Send the header X-Stub-Scenario to force
+  Edge can build its error screens now.
+- CORS is wide open (any origin) so a browser page can call it. Stub only. Send the header X-Stub-Scenario to force
   a Vault style error (see SCENARIOS) after the request passes role and validation.
 
 Ids in the examples: AFT session 7, IOCT session 8, AFT event 11, IOCT event 12.
@@ -228,10 +229,23 @@ def create_app():
 
     @app.before_request
     def check_contract_version():
+        if request.method == "OPTIONS":
+            return None  # a browser's CORS preflight carries none of our custom headers
         if request.path.startswith("/v0/"):
             if request.headers.get("X-Contract-Version") != CONTRACT_VERSION:
                 return error(400, "unsupported_contract_version",
                              "Send the header 'X-Contract-Version: v0'.")
+
+    @app.after_request
+    def allow_browser_calls(resp):
+        # STUB ONLY. Lets the Edge page, opened from disk or from another port, call this
+        # API from a browser. The real Gatekeeper must allow only the Edge origin.
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = (
+            "Content-Type, X-Contract-Version, X-Role, X-Stub-Scenario")
+        resp.headers["Access-Control-Max-Age"] = "600"
+        return resp
 
     for method, rule, roles, status, example, body_spec, s_type, e_type in ROUTES:
         app.add_url_rule(rule, endpoint=f"{method} {rule}",

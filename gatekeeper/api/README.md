@@ -18,9 +18,19 @@ It is a stub:
 
 ## Run
 
+You have to start it and leave it running. Open its own terminal window for it:
+
     cd gatekeeper/api
     pip install -r requirements.txt
     python app.py            # http://127.0.0.1:5000
+
+When it works you see `Running on http://127.0.0.1:5000`. Keep that window open while you
+use the web app, and press Ctrl+C to stop it. Check it from a browser or another terminal:
+
+    curl -H "X-Contract-Version: v0" -H "X-Role: oic" http://127.0.0.1:5000/v0/health
+
+The web app should call `http://127.0.0.1:5000` (or `http://localhost:5000`). Browsers may
+call it from a page opened straight from disk: the stub allows any origin (CORS).
 
 ## Test (run from gatekeeper/api/)
 

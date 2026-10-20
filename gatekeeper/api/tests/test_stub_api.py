@@ -125,6 +125,27 @@ class StubApiTest(unittest.TestCase):
         self.assertEqual(r.status_code, 404)
         self.assertIn("error", r.get_json())
 
+    # ---- browser access (CORS) -------------------------------------------
+
+    def test_browser_preflight_and_cors_headers(self):
+        # A page opened from disk (Origin: null) sends this before any real call.
+        r = self.client.options(
+            "/v0/sessions/7/events",
+            headers={"Origin": "null", "Access-Control-Request-Method": "POST",
+                     "Access-Control-Request-Headers": "content-type,x-contract-version,x-role"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers["Access-Control-Allow-Origin"], "*")
+        allowed = r.headers["Access-Control-Allow-Headers"].lower()
+        for h in ("content-type", "x-contract-version", "x-role", "x-stub-scenario"):
+            self.assertIn(h, allowed)
+        self.assertIn("POST", r.headers["Access-Control-Allow-Methods"])
+        # Success and error responses both carry the header, or the page cannot read them.
+        ok = self.call("GET", "/v0/health", "oic")
+        bad = self.call("GET", "/v0/audit/verify", "grader")
+        self.assertEqual((ok.status_code, bad.status_code), (200, 403))
+        for resp in (ok, bad):
+            self.assertEqual(resp.headers["Access-Control-Allow-Origin"], "*")
+
     # ---- ids and state ---------------------------------------------------
 
     def test_unknown_ids_are_404(self):
