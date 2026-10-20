@@ -1,0 +1,146 @@
+{
+  "contract_version": "1.0",
+  "data_classification": "SYNTHETIC_TEST_DATA",
+  "cadets": [
+    {
+      "fake_name": "Cadet Alpha",
+      "edipi": "9000000001",
+      "section": "CY300-01",
+      "barcode_string": "PDF417_TEST_DATA_9000000001_END",
+      "aft_results": {
+        "mdl_lbs": 340,
+        "hrp_reps": 60,
+        "sdc_time": "1:30",
+        "plank_time": "3:40",
+        "twomr_time": "13:15"
+      },
+      "ioct_time": "2:35"
+    },
+    {
+      "fake_name": "Cadet Bravo",
+      "edipi": "9000000002",
+      "section": "CY300-01",
+      "barcode_string": "PDF417_TEST_DATA_9000000002_END",
+      "aft_results": {
+        "mdl_lbs": 140,
+        "hrp_reps": 35,
+        "sdc_time": "2:10",
+        "plank_time": "1:45",
+        "twomr_time": "15:45"
+      },
+      "ioct_time": "3:20"
+    },
+    {
+      "fake_name": "Cadet Charlie",
+      "edipi": "9000000003",
+      "section": "CY300-02",
+      "barcode_string": "PDF417_TEST_DATA_9000000003_END",
+      "aft_results": {
+        "mdl_lbs": 280,
+        "hrp_reps": 45,
+        "sdc_time": "1:55",
+        "plank_time": "3:00",
+        "twomr_time": "14:20"
+      },
+      "ioct_time": "2:55"
+    },
+    {
+      "fake_name": "Cadet Delta",
+      "edipi": "9000000004",
+      "section": "CY300-02",
+      "barcode_string": "PDF417_TEST_DATA_9000000004_END",
+      "aft_results": {
+        "mdl_lbs": 200,
+        "hrp_reps": 40,
+        "sdc_time": "2:00",
+        "plank_time": "2:15",
+        "twomr_time": "15:10"
+      },
+      "ioct_time": "3:10"
+    },
+    {
+      "fake_name": "Cadet Echo",
+      "edipi": "9000000005",
+      "section": "CY300-03",
+      "barcode_string": "PDF417_TEST_DATA_9000000005_END",
+      "aft_results": {
+        "mdl_lbs": 300,
+        "hrp_reps": 55,
+        "sdc_time": "1:40",
+        "plank_time": "3:10",
+        "twomr_time": "13:50"
+      },
+      "ioct_time": "2:45"
+    },
+    {
+      "fake_name": "Cadet Foxtrot",
+      "edipi": "9000000006",
+      "section": "CY300-03",
+      "barcode_string": "PDF417_TEST_DATA_9000000006_END",
+      "aft_results": {
+        "mdl_lbs": 220,
+        "hrp_reps": 42,
+        "sdc_time": "2:05",
+        "plank_time": "2:30",
+        "twomr_time": "16:00"
+      },
+      "ioct_time": "3:40"
+    },
+    {
+      "fake_name": "Cadet Golf",
+      "edipi": "9000000007",
+      "section": "XE401-01",
+      "barcode_string": "PDF417_TEST_DATA_9000000007_END",
+      "aft_results": {
+        "mdl_lbs": 320,
+        "hrp_reps": 50,
+        "sdc_time": "1:45",
+        "plank_time": "3:30",
+        "twomr_time": "14:05"
+      },
+      "ioct_time": "2:50"
+    },
+    {
+      "fake_name": "Cadet Hotel",
+      "edipi": "9000000008",
+      "section": "XE401-01",
+      "barcode_string": "PDF417_TEST_DATA_9000000008_END",
+      "aft_results": {
+        "mdl_lbs": 180,
+        "hrp_reps": 38,
+        "sdc_time": "2:15",
+        "plank_time": "1:55",
+        "twomr_time": "16:30"
+      },
+      "ioct_time": "3:55"
+    },
+    {
+      "fake_name": "Cadet India",
+      "edipi": "9000000009",
+      "section": "XE401-02",
+      "barcode_string": "PDF417_TEST_DATA_9000000009_END",
+      "aft_results": {
+        "mdl_lbs": 260,
+        "hrp_reps": 48,
+        "sdc_time": "1:50",
+        "plank_time": "2:50",
+        "twomr_time": "14:40"
+      },
+      "ioct_time": "3:05"
+    },
+    {
+      "fake_name": "Cadet Juliet",
+      "edipi": "9000000010",
+      "section": "XE401-02",
+      "barcode_string": "PDF417_TEST_DATA_9000000010_END",
+      "aft_results": {
+        "mdl_lbs": 240,
+        "hrp_reps": 46,
+        "sdc_time": "1:58",
+        "plank_time": "2:40",
+        "twomr_time": "15:20"
+      },
+      "ioct_time": "3:15"
+    }
+  ]
+}
