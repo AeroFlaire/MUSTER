@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MUSTER Web App - v0 Contract</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
+        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        button[type="submit"] { background: #0056b3; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 10px; }
+        button[type="submit"]:hover { background: #004494; }
+        .response-box { margin-top: 20px; padding: 15px; background: #222; color: #0f0; border-radius: 4px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+        .config-box { background: #eef; padding: 15px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #ccd; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>MUSTER Interface (AFT Flow)</h2>
+
+    <div class="config-box grid-2">
+        <div class="form-group">
+            <label for="active_role">Active Role (X-Role)</label>
+            <select id="active_role">
+                <option value="grader">Grader</option>
+                <option value="compiler_station">Compiler Station</option>
+                <option value="oic">OIC</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="stub_scenario">Force Stub Error (X-Stub-Scenario)</label>
+            <select id="stub_scenario">
+                <option value="">None (Success Flow)</option>
+                <option value="not_found">404 Not Found</option>
+                <option value="invalid_transition">409 Invalid Transition</option>
+                <option value="forbidden_role">403 Forbidden Role</option>
+                <option value="signature_invalid">400 Signature Invalid</option>
+            </select>
+        </div>
+    </div>
+
+    <form id="fitnessForm">
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="session_id">Session ID</label>
+                <input type="number" id="session_id" required value="7">
+            </div>
+            <div class="form-group">
+                <label for="barcode">Raw Barcode String</label>
+                <input type="text" id="barcode" required value="PDF417_TEST_DATA_9000000001_END">
+            </div>
+        </div>
+        
+        <div class="grid-2">
+            <div class="form-group"><label for="mdl_lbs">MDL (lbs)</label><input type="text" id="mdl_lbs" value="340"></div>
+            <div class="form-group"><label for="hrp_reps">HRP (reps)</label><input type="text" id="hrp_reps" value="60"></div>
+            <div class="form-group"><label for="sdc_time">SDC (time)</label><input type="text" id="sdc_time" value="1:30"></div>
+            <div class="form-group"><label for="plank_time">PLK (time)</label><input type="text" id="plank_time" value="3:40"></div>
+            <div class="form-group"><label for="twomr_time">2MR (time)</label><input type="text" id="twomr_time" value="13:15"></div>
+        </div>
+        
+        <button type="submit">Execute Multi-Step AFT Submission</button>
+    </form>
+
+    <div id="apiResponse" class="response-box" style="display: none;"></div>
+</div>
+
+<script>
+    function logOutput(msg) {
+        const box = document.getElementById('apiResponse');
+        box.style.display = 'block';
+        box.textContent += msg + '\n\n';
+        box.scrollTop = box.scrollHeight;
+    }
+
+    async function apiCall(endpoint, method = 'POST', body = null) {
+        const role = document.getElementById('active_role').value;
+        const scenario = document.getElementById('stub_scenario').value;
+        
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Contract-Version': 'v0',
+            'X-Role': role
+        };
+        
+        if (scenario) headers['X-Stub-Scenario'] = scenario;
+
+        logOutput(`>>> ${method} ${endpoint}`);
+        
+        const response = await fetch(`http://localhost:5000${endpoint}`, {
+            method: method,
+            headers: headers,
+            body: body ? JSON.stringify(body) : null
+        });
+
+        const data = await response.json();
+        logOutput(`<<< ${response.status} ${response.statusText}\n${JSON.stringify(data, null, 2)}`);
+        
+        if (!response.ok) throw new Error(`API halted on ${response.status}`);
+        return data;
+    }
+
+    document.getElementById('fitnessForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        document.getElementById('apiResponse').textContent = ''; // Clear logs
+        
+        const sessionId = document.getElementById('session_id').value;
+        const barcode = document.getElementById('barcode').value;
+
+        try {
+            // 1. Open Event
+            const openRes = await apiCall(`/v0/sessions/${sessionId}/events`, 'POST', { barcode: barcode });
+            const eventId = openRes.event_id;
+
+            // 2. Add Components
+            const components = [
+                { id: 'mdl_lbs', code: 'MDL' },
+                { id: 'hrp_reps', code: 'HRP' },
+                { id: 'sdc_time', code: 'SDC' },
+                { id: 'plank_time', code: 'PLK' },
+                { id: 'twomr_time', code: '2MR' }
+            ];
+
+            for (const comp of components) {
+                const val = document.getElementById(comp.id).value;
+                await apiCall(`/v0/events/${eventId}/components`, 'POST', {
+                    component: comp.code,
+                    raw_value: val,
+                    points: 100 // Placeholder per contract
+                });
+            }
+
+            // 3. Submit Event
+            await apiCall(`/v0/events/${eventId}/submit`, 'POST');
+
+            // 4. Challenge & Sign (Only if role allows it)
+            const role = document.getElementById('active_role').value;
+            if (role === 'compiler_station' || role === 'oic') {
+                const challengeRes = await apiCall(`/v0/events/${eventId}/cadet-challenge`, 'POST');
+                
+                // 5. Accept Event (using dummy synthetic signature)
+                await apiCall(`/v0/events/${eventId}/accept`, 'POST', {
+                    challenge_id: challengeRes.challenge_id,
+                    signature_b64: "U1lOVEhFVElDLVNJR05BVFVSRQ=="
+                });
+            } else {
+                logOutput("--- Flow paused: Current role cannot sign (requires compiler_station/oic) ---");
+            }
+
+        } catch (error) {
+            logOutput(`[FLOW ABORTED] ${error.message}`);
+        }
+    });
+</script>
+</body>
+</html>
