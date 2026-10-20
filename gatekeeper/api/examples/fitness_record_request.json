@@ -1,0 +1,13 @@
+{
+  "idempotency_key": "6f1c2b0e-3d44-4a8e-9b7a-2c1d5e8f9a10",
+  "cadet_id_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "test_type": "AFT",
+  "test_date": "2026-10-16",
+  "measurements": {
+    "deadlift_lbs": 210,
+    "hand_release_pushups_reps": 34,
+    "sprint_drag_carry_seconds": 105.4,
+    "plank_seconds": 150,
+    "two_mile_run_seconds": 1030
+  }
+}
