@@ -69,3 +69,4 @@ local-db/
 *.swp
 .DS_Store
 Thumbs.db
+gatekeeper/api/muster_demo.db
