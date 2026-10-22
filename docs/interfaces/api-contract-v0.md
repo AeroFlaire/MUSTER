@@ -497,7 +497,7 @@ One shape for every error. The `message` is safe to show on an Edge error screen
 
 A write that is refused by the signing checks still writes one rejection entry to the audit log.
 
-Stub only: send `X-Stub-Scenario: not_found`, `invalid_transition`, `challenge_invalid`, `signature_invalid`, `timing_error`, or `internal_error` on a request that passes the role and body checks, and the stub returns that error. Use it to build error screens.
+Stub only: send `X-Stub-Scenario: not_found`, `invalid_transition`, `forbidden_role`, `challenge_invalid`, `signature_invalid`, `timing_error`, or `internal_error` on a request that passes the role and body checks, and the stub returns that error. Use it to build error screens.
 
 ## 9. Field names versus the Vault
 

@@ -50,6 +50,7 @@ SCENARIOS = {
     "challenge_invalid": (400, "challenge_invalid", "Stub scenario: the challenge is expired or already used."),
     "signature_invalid": (400, "signature_invalid", "Stub scenario: the signature does not verify against the enrolled key."),
     "timing_error": (422, "timing_error", "Stub scenario: no END gate read for this wristband since pairing."),
+    "forbidden_role": (403, "forbidden_role", "Stub scenario: this role may not do that."),
     "internal_error": (500, "internal_error", "Stub scenario: internal error. Nothing was written."),
 }
 

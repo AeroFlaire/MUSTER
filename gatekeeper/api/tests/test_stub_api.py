@@ -173,7 +173,7 @@ class StubApiTest(unittest.TestCase):
 
     def test_stub_scenarios(self):
         expect = {"not_found": 404, "invalid_transition": 409, "challenge_invalid": 400,
-                  "signature_invalid": 400, "timing_error": 422, "internal_error": 500}
+                  "signature_invalid": 400, "forbidden_role": 403, "timing_error": 422, "internal_error": 500}
         for name, status in expect.items():
             r = self.call("POST", "/v0/events/11/accept", "compiler_station", "accept_request",
                           **{"X-Stub-Scenario": name})
