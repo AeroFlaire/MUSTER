@@ -70,3 +70,4 @@ local-db/
 .DS_Store
 Thumbs.db
 gatekeeper/api/muster_demo.db
+gatekeeper/api/muster_demo_credentials.json
