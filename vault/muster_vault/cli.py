@@ -8,6 +8,7 @@ Database files are encrypted; set MUSTER_DB_KEY first (see `new-key`).
     python -m muster_vault head     --db muster.db
     python -m muster_vault history  --db muster.db --entity fitness_event --id 3
     python -m muster_vault check    --db muster.db --event 3
+    python -m muster_vault integrity --db muster.db      # chain + every score vs. its audit trail
     python -m muster_vault retention --db muster.db      # settings + records past retention
     python -m muster_vault set-retention --db muster.db --actor 1 --function FITNESS \
                                          --days 1825 --source "AR 25-400-2, ..."
@@ -30,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     for name, help_ in [("init", "create the database and schema"),
                         ("verify", "walk the audit hash chain (PASS / first broken seq)"),
                         ("head", "print the latest audit entry (an outside anchor)"),
+                        ("integrity", "audit chain + every score checked against its audit trail"),
                         ("retention", "show retention settings and records past retention")]:
         sp = sub.add_parser(name, help=help_)
         sp.add_argument("--db", required=True)
@@ -91,6 +93,18 @@ def _run(args) -> int:
         result = fitness.verify_event(conn, args.event)
         print(json.dumps(result, indent=2))
         return 0 if result["ok"] else 1
+    if args.cmd == "integrity":
+        rep = fitness.integrity_report(conn)
+        print(f"Audit chain : {rep['chain']}")
+        for e in rep["events"]:
+            mark = "OK      " if e["ok"] else "TAMPERED"
+            print(f"Score {e['event_id']:<5} {mark} ({e['status']}"
+                  f"{', cadet-signed' if e['signed'] else ''})")
+            for p in e["problems"]:
+                print(f"      - {p}")
+        print("RESULT: " + ("PASS - every record matches its audit trail" if rep["ok"]
+                            else "FAIL - tampering detected"))
+        return 0 if rep["ok"] else 1
     if args.cmd == "retention":
         for r in retention.report(conn):
             flag = "  <-- PLACEHOLDER, not policy" if r["placeholder"] else ""

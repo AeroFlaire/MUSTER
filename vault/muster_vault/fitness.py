@@ -421,15 +421,66 @@ def supersede(conn: sqlite3.Connection, actor_id: int, event_id: int, reason: st
 # Integrity check for one score
 # ---------------------------------------------------------------------------
 
-def verify_event(conn: sqlite3.Connection, event_id: int) -> dict:
-    """Does the score in the tables still match what the cadet signed?"""
+def _replay(conn: sqlite3.Connection, event_id: int, depth: int = 0):
+    """(cadet_id, {component: (raw_value, points)}) as the audit log tells it.
+
+    A correction (supersede) copies the old score's results into the new event, so
+    the new event starts from the old event's logged results."""
+    if depth > 50:
+        raise VaultError("correction chain too long")
+    expected: dict[str, tuple] = {}
+    opened_for = None
+    for e in audit.entries_for(conn, "fitness_event", event_id):
+        data = json.loads(e["data"])
+        if e["action"] == "EVENT_OPENED":
+            opened_for = data.get("cadet_id")
+            if data.get("supersedes_event_id") is not None:
+                expected.update(_replay(conn, data["supersedes_event_id"], depth + 1)[1])
+        elif e["action"] in ("COMPONENT_ENTERED", "COMPONENT_CHANGED"):
+            expected[data["component"]] = (data["raw_value"], data["points"])
+    return opened_for, expected
+
+
+def check_against_audit(conn: sqlite3.Connection, event_id: int) -> list[str]:
+    """Do the score tables still say what the audit log says was entered?
+
+    Replays this event's audit entries (who the score belongs to, and every AFT
+    component entered or changed, in order) and compares the result with the
+    tables. Catches an edit made straight to the tables, signed or not: the edit
+    leaves no audit entry, so the tables and the log disagree. If someone also edits
+    the log to match, audit.verify() catches that instead.
+    """
     ev = get_event(conn, event_id)
+    opened_for, expected = _replay(conn, event_id)
     problems: list[str] = []
+    if opened_for is None:
+        problems.append("no EVENT_OPENED entry in the audit log for this score")
+    elif opened_for != ev["cadet_id"]:
+        problems.append("score now belongs to a different cadet than the audit log records")
+    actual = {r["component"]: (r["raw_value"], r["points"]) for r in conn.execute(
+        "SELECT component, raw_value, points FROM fitness_component WHERE event_id = ?",
+        (event_id,))}
+    for comp in sorted(set(expected) | set(actual)):
+        if comp not in actual:
+            problems.append(f"{comp}: in the audit log but missing from the database")
+        elif comp not in expected:
+            problems.append(f"{comp}: in the database but never entered through MUSTER")
+        elif actual[comp] != expected[comp]:
+            (a_raw, a_pts), (x_raw, x_pts) = actual[comp], expected[comp]
+            problems.append(f"{comp}: database says {a_raw} / {a_pts} pts, audit log says "
+                            f"{x_raw} / {x_pts} pts")
+    return problems
+
+
+def verify_event(conn: sqlite3.Connection, event_id: int) -> dict:
+    """Does the score in the tables still match the audit log and what the cadet signed?"""
+    ev = get_event(conn, event_id)
+    problems: list[str] = check_against_audit(conn, event_id)
     if ev["cadet_attestation_id"] is None:
+        if ev["status"] in ("SIGNED", "EXPORTED"):
+            problems.append("marked signed but no cadet signature on file")
         return {"event_id": event_id, "status": ev["status"], "signed": False,
-                "ok": ev["status"] not in ("SIGNED", "EXPORTED"),
-                "problems": [] if ev["status"] not in ("SIGNED", "EXPORTED")
-                else ["marked signed but no cadet signature on file"]}
+                "ok": not problems, "problems": problems}
     att = one(conn, "SELECT payload FROM attestation WHERE id = ?",
               (ev["cadet_attestation_id"],))
     if not attestation.reverify(conn, ev["cadet_attestation_id"]):
@@ -442,3 +493,13 @@ def verify_event(conn: sqlite3.Connection, event_id: int) -> dict:
         problems.append("grader signature no longer verifies")
     return {"event_id": event_id, "status": ev["status"], "signed": True,
             "ok": not problems, "problems": problems}
+
+
+def integrity_report(conn: sqlite3.Connection) -> dict:
+    """Everything at once: the audit chain, then every score against the log (and,
+    if signed, against the cadet's signature). `ok` is True only if all pass."""
+    chain = audit.verify(conn)
+    events = [verify_event(conn, r["id"])
+              for r in conn.execute("SELECT id FROM fitness_event ORDER BY id")]
+    return {"ok": chain.ok and all(e["ok"] for e in events), "chain": chain,
+            "events": events}

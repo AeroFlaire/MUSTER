@@ -16,7 +16,7 @@ Python 3.10+ Â· SQLite encrypted with SQLCipher (AES-256, `sqlcipher3-wheels`) Â
 cd vault
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                                 # 72 tests, synthetic data only
+pytest                                                 # 80 tests, synthetic data only
 python ../scripts/vault_demo.py                        # end-to-end demo + tamper attacks
 ```
 
@@ -28,7 +28,8 @@ python -m muster_vault init     --db muster.db
 python -m muster_vault verify   --db muster.db        # PASS, or first broken seq
 python -m muster_vault head     --db muster.db        # latest entry (outside anchor)
 python -m muster_vault history  --db muster.db --entity fitness_event --id 3
-python -m muster_vault check    --db muster.db --event 3   # score vs. what cadet signed
+python -m muster_vault check    --db muster.db --event 3   # score vs. audit log + what cadet signed
+python -m muster_vault integrity --db muster.db       # chain + every score vs. its audit trail
 python -m muster_vault retention --db muster.db       # retention settings + records past them
 python -m muster_vault set-retention --db muster.db --actor 1 --function FITNESS --days 1825 --source "..."
 python -m muster_vault encrypt-db --plain old.db --db new.db   # convert an old plaintext DB
