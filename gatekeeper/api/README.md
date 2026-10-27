@@ -108,7 +108,13 @@ Setup, once (PowerShell, from `gatekeeper/api/`):
 
     pip install -r requirements.txt
     $env:MUSTER_EDIPI_KEY = "a-demo-secret-of-at-least-32-characters"
+    $env:MUSTER_DB_KEY = (python -c "import secrets; print(secrets.token_hex(32))")
     python live_app.py --reset
+
+The Vault database is encrypted (SQLCipher). `MUSTER_DB_KEY` must be the **same** value every
+time you reuse the database. Keep it in your own notes, never in the repo. A new key means
+running `--reset` again. An old `muster_demo.db` from before encryption won't open; delete it
+and run `--reset`.
 
 `--reset` builds `muster_demo.db` (git-ignore it) with an admin, an OIC, a grader, a compiler
 station, the ten synthetic cadets from `tests/synthetic_test_pack.json`, and one open AFT

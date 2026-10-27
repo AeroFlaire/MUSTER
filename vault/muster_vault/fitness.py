@@ -25,7 +25,7 @@ import sqlite3
 
 from . import attestation, audit, clock, identity
 from .canonical import canonical_bytes
-from .db import one, transaction
+from .db import IntegrityError, one, transaction
 from .errors import ChallengeError, InvalidTransition, NotFound, SignatureInvalid, VaultError
 
 # AFT events (Army Fitness Test, replaced the ACFT in 2025).
@@ -114,7 +114,7 @@ def _create_event(conn, actor_id: int, session_id: int, cadet_id: int, test_type
             (session_id, cadet_id, test_type, actor_id, supersedes, client_ref,
              clock.now_iso()),
         )
-    except sqlite3.IntegrityError as exc:
+    except IntegrityError as exc:
         if "ux_fitness_event_live" in str(exc) or "fitness_event.session_id" in str(exc):
             raise InvalidTransition(
                 "this cadet already has a live score in this session") from exc

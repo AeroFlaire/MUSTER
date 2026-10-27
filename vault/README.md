@@ -6,7 +6,7 @@ The Vault is MUSTER's records office. It holds every score, attendance mark, and
 weapon sign-out, plus an append-only, hash-chained audit log of every change.
 The Gatekeeper is its only caller. **Nothing else writes SQL to the database.**
 
-Python 3.10+ · SQLite · `cryptography` for signature checks.
+Python 3.10+ · SQLite encrypted with SQLCipher (AES-256, `sqlcipher3-wheels`) · `cryptography` for signature checks.
 
 ---
 
@@ -16,22 +16,28 @@ Python 3.10+ · SQLite · `cryptography` for signature checks.
 cd vault
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                                                 # 46 tests, synthetic data only
+pytest                                                 # 72 tests, synthetic data only
 python ../scripts/vault_demo.py                        # end-to-end demo + tamper attacks
 ```
 
 Command line:
 
 ```bash
+export MUSTER_DB_KEY=$(python -m muster_vault new-key)   # PowerShell: $env:MUSTER_DB_KEY = (python -m muster_vault new-key)
 python -m muster_vault init     --db muster.db
 python -m muster_vault verify   --db muster.db        # PASS, or first broken seq
 python -m muster_vault head     --db muster.db        # latest entry (outside anchor)
 python -m muster_vault history  --db muster.db --entity fitness_event --id 3
 python -m muster_vault check    --db muster.db --event 3   # score vs. what cadet signed
+python -m muster_vault retention --db muster.db       # retention settings + records past them
+python -m muster_vault set-retention --db muster.db --actor 1 --function FITNESS --days 1825 --source "..."
+python -m muster_vault encrypt-db --plain old.db --db new.db   # convert an old plaintext DB
 ```
 
-The Gatekeeper must set `MUSTER_EDIPI_KEY` (a secret of 32+ characters) to hash EDIPIs.
-Keep it out of the repo (`.env` is already git-ignored).
+Two secrets, both set as environment variables and **never committed** (`.env` is git-ignored):
+- `MUSTER_EDIPI_KEY` (32+ characters): the Gatekeeper uses it to hash EDIPIs.
+- `MUSTER_DB_KEY` (64 hex characters, from `new-key`): unlocks the encrypted database.
+  **Lose it and the data cannot be recovered.** See `docs/design/encryption-and-retention.md`.
 
 ---
 
@@ -40,7 +46,8 @@ Keep it out of the repo (`.env` is already git-ignored).
 | Module | What it does |
 |---|---|
 | `schema.sql` | All tables. Working tables + `audit_log` (with append-only triggers). |
-| `db.py` | Opens SQLite; `transaction()` uses `BEGIN IMMEDIATE` so the chain can't fork. |
+| `db.py` | Opens the encrypted database (key from `MUSTER_DB_KEY`); `transaction()` uses `BEGIN IMMEDIATE` so the chain can't fork. |
+| `retention.py` | Per-function retention period (admin-only, audited; PLACEHOLDER until the RFI) and records past it. |
 | `audit.py` | `append` (inside a transaction) and `verify` (walks the chain). |
 | `canonical.py` | One exact way to turn a record into bytes for hashing/signing. |
 | `identity.py` | Cadets, staff, roles, EDIPI HMAC, CAC key enrollment/revocation. |
