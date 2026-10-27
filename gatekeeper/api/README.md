@@ -90,21 +90,39 @@ Try it:
 - Points in the examples are invented placeholders until the DPE scoring RFI closes.
 - No 401. Until real auth exists, no role means 403.
 
-## Live mode: the API writes to the Vault (PBI-04 L24)
+## Live mode: the API writes to the Vault (PBI-04 L24, PBI-05 L25)
 
 `live_app.py` is the same API with three endpoints made real. They write to a Vault
-database, and each POST writes the record and its audit entry together or not at all
-(the Vault does both in one transaction, and the tests prove it):
+database. Each POST writes the record and its audit entry together or not at all (the Vault
+does both in one transaction), and only a caller with the right role can make them.
 
-| Endpoint | Writes |
+| Endpoint | Writes | Roles |
+|---|---|---|
+| POST /v0/sessions/{id}/events | one `fitness_event` + one `EVENT_OPENED` audit entry | grader, oic |
+| POST /v0/events/{id}/components | one `fitness_component` + one `COMPONENT_ENTERED` audit entry | grader, oic |
+| POST /v0/events/{id}/submit | status change to SUBMITTED + one `EVENT_SUBMITTED` audit entry | grader, oic |
+| POST /v0/sessions/{id}/ioct/pair | one IOCT event + a wristband pairing, 2 audit entries | grader, oic |
+| POST /v0/sessions/{id}/gate-reads | one raw `gate_read` + one `GATE_READ` audit entry | gate_station, oic |
+| POST /v0/events/{id}/ioct/compute | one `ioct_run` (time computed by the Vault) + one `RUN_COMPUTED` audit entry | grader, compiler_station, oic |
+
+Every other endpoint (signing, dispute, reopen, supersede, reads, audit) still returns its canned example and still reads `X-Role`.
+
+### Who may call (SR-1)
+
+Live writes need `Authorization: Bearer <token>`. The role is **never** taken from the
+request: the token maps to a Vault user, and the role is read from the Vault's own user record.
+`X-Role` is ignored on these three endpoints.
+
+| Caller | Result |
 |---|---|
-| POST /v0/sessions/{id}/events | one `fitness_event` + one `EVENT_OPENED` audit entry |
-| POST /v0/events/{id}/components | one `fitness_component` + one `COMPONENT_ENTERED` audit entry |
-| POST /v0/events/{id}/submit | status change to SUBMITTED + one `EVENT_SUBMITTED` audit entry |
+| no token, bad token, wrong scheme | 401 `unauthenticated`. Nothing reaches the Vault |
+| cadet token (a cadet is not a Vault user) | 403 `forbidden_role`. Nothing reaches the Vault |
+| staff user who is inactive, or whose role is not allowed here (compiler_station, admin) | 403 `forbidden_role`. Nothing reaches the Vault |
+| grader or oic | the write goes through (the Vault checks the role again) |
 
-Every other endpoint still returns its canned example.
+Only SHA-256 hashes of tokens are stored. Tokens are shown once when the demo is built.
 
-Setup, once (PowerShell, from `gatekeeper/api/`):
+### Run it (PowerShell, from `gatekeeper/api/`)
 
     pip install -r requirements.txt
     $env:MUSTER_EDIPI_KEY = "a-demo-secret-of-at-least-32-characters"
@@ -114,22 +132,34 @@ Setup, once (PowerShell, from `gatekeeper/api/`):
 The Vault database is encrypted (SQLCipher). `MUSTER_DB_KEY` must be the **same** value every
 time you reuse the database. Keep it in your own notes, never in the repo. A new key means
 running `--reset` again. An old `muster_demo.db` from before encryption won't open; delete it
-and run `--reset`.
+and run `--reset`. (`demo_full_run.py` makes its own throwaway key, so it needs nothing extra.)
 
-`--reset` builds `muster_demo.db` (git-ignore it) with an admin, an OIC, a grader, a compiler
-station, the ten synthetic cadets from `tests/synthetic_test_pack.json`, and one open AFT
-session. **The demo session id is 1, not 7**, so use 1 in Edge's session field when talking
-to live mode. Barcodes are the test pack's `PDF417_TEST_DATA_<EDIPI>_END`. Run `python app.py`
-instead to get the all-canned stub back.
+`--reset` builds `muster_demo.db` and `muster_demo_credentials.json` (git-ignore both), then
+prints one demo token per role (admin, oic, grader, compiler_station, cadet). Copy the
+**grader** token and send it as `Authorization: Bearer <token>`. Try the cadet token to see the
+403. The demo AFT session id is **1** (not 7) and the demo IOCT session is **2**, with wristbands TAG-017 to TAG-019. Barcodes are the test pack's
+`PDF417_TEST_DATA_<EDIPI>_END`. Run `python app.py` instead to get the all-canned stub back.
+
+Test, for example, with PowerShell (replace TOKEN):
+
+    curl.exe -X POST http://127.0.0.1:5000/v0/sessions/1/events -H "X-Contract-Version: v0" -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d "{\"barcode\": \"PDF417_TEST_DATA_9000000001_END\"}"
 
 Rules the code follows:
 - Gatekeeper makes exactly one Vault write call per POST and never wraps two in its own
   transaction. The Vault's `db.transaction()` does the all-or-nothing part.
-- The barcode is parsed and HMAC hashed inside `vault_bridge.hash_barcode` and thrown away.
-  The error text never echoes it.
+- Authentication and the role check run before the body is read or the Vault is touched.
+- The barcode is parsed and HMAC hashed in `vault_bridge.hash_barcode` and thrown away. Error text
+  never echoes it.
 - Vault errors map to contract codes in `vault_bridge.map_error`.
 
-Known gaps (also in the contract's open items): the real CAC barcode parser is not built
-(test pack format only), and the role to Vault user mapping is a dev shortcut (first active
-user with that role). Tests: `python -m unittest discover -s tests -v`. They need the Vault
-package (`<repo>/vault`) and its `cryptography` dependency.
+Known gaps (also in the contract's open items): the real CAC barcode parser is not built (test pack
+format only), and staff do not yet get tokens by signing in with a CAC. Tests:
+`python -m unittest discover -s tests -v`. They need the Vault package (`<repo>/vault`) and its
+`cryptography` dependency.
+
+## Sprint 1 review demo (one laptop, every access level)
+
+    python demo_full_run.py --pause     # terminal run, waits for Enter between scenes
+    python demo_full_run.py --screen    # browser part: then open docs/interfaces/live_demo.html
+
+`demo_full_run.py` builds its own throwaway Vault database and walks the whole path over real HTTP: a grader's AFT scorecard, every access level against every write, a simulated IOCT run, a forced audit failure, and a tamper check. The script, narration and recording notes are in `docs/demo/gatekeeper-demo-script.md`.

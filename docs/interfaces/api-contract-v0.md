@@ -1,10 +1,17 @@
 # MUSTER API Contract v0 (revision 2)
 
-Status: DRAFT for team acknowledgement. Revision 2, 20-Oct-2026 (L23).
+Status: DRAFT for team acknowledgement. Revision 2.1, 27-Oct-2026 (L25). Revision 2 was 20-Oct (L23).
 Owner: Alena (Gatekeeper). Consumers: Rhemmy (Edge), Arjo (Vault), Eliakim (timing gate).
 Traces to: SR-1, SR-3, SR-4. Cards: PBI-02 L22 Draft API contract v0, PBI-03 L23 API skeleton.
 
 Rule from the integration rules: a change to field names or endpoints is posted on the contract card, the version is bumped, and the other owners acknowledge it before it is merged.
+
+## What changed in revision 2.1 (L25, role check)
+
+- Live write endpoints no longer trust a role sent by the client. A caller sends `Authorization: Bearer <token>`. Gatekeeper maps the token to a Vault `app_user` id and reads the role from the Vault's own user record. `X-Role` is ignored on live endpoints (the stub still uses it).
+- New error: 401 `unauthenticated` for a missing, malformed, or unknown token. A known caller who may not do this (a cadet, an inactive user, the wrong role) is still 403 `forbidden_role`. Edge error screens need one new case for 401.
+- Time format settled: the official AFT score tables write times as `m:ss` with no leading zero (for example `1:29`). Use `m:ss`.
+- Scoring tables: the AFT Score Tables (approved 15 May 2025, effective 1 June 2025) are public and are in hand. What is still open is which age group and column (M|C or F) applies to each cadet.
 
 ## What changed since revision 1
 
@@ -27,11 +34,11 @@ Revision 1 was written before the Vault, the README design, and the shared test 
 - Binary values (the bytes a cadet signs, and the signature) travel as base64 in fields ending `_b64`.
 - There is no update or delete endpoint for any resource. A correction to a signed score is a new event that supersedes the old one, and both are kept.
 - Retries: `client_ref` is a unique id the caller makes up. Sending the same `client_ref` twice returns the original result instead of creating a second one (SR-5). It is available on open event, ioct pair, and gate reads.
-- Stub note: in the stub the role comes from the `X-Role` header. That is a stand-in. The real mechanism maps a signed-in session to a Vault `app_user` id and is an open item (section 12).
+- Who is calling: live write endpoints (open event, add component, submit, ioct pair, gate reads, ioct compute) require `Authorization: Bearer <token>`. Gatekeeper looks the token up (it stores only hashes of tokens), gets a Vault `app_user` id, and reads the role from the Vault, so a role change or deactivation in the Vault applies on the next request. The client never states its own role. Cadets are not Vault users, so a cadet credential has no user id and every write is refused. Stub note: the stub, and the endpoints that are still canned, read the role from the `X-Role` header. That is a stand-in until those endpoints go live. How staff obtain tokens (CAC sign in) is a later card.
 
 ## 2. Roles and endpoints
 
-Role sets, copied from the Vault: GRADER = grader, oic. STATION = compiler_station, oic. OIC = oic, admin. A caller with a missing role, an unknown role (for example `cadet`), or the wrong role gets 403 `forbidden_role`. The Vault checks the role again on every write (defense in depth).
+Role sets, copied from the Vault: GRADER = grader, oic. STATION = compiler_station, oic. OIC = oic, admin. On live endpoints, a request with no valid token gets 401 `unauthenticated`, and a caller with an unknown role (for example `cadet`), an inactive account, or the wrong role gets 403 `forbidden_role`. Either way nothing reaches the Vault. In the stub a missing or unknown `X-Role` is 403 `forbidden_role`. The Vault checks the role again on every write (defense in depth).
 
 | Method and path | Roles | Vault call |
 |---|---|---|
@@ -488,7 +495,8 @@ One shape for every error. The `message` is safe to show on an Edge error screen
 | 400 | unsupported_contract_version | Header missing or not `v0` |
 | 400 | challenge_invalid | Challenge expired, already used, or for another event (ChallengeError) |
 | 400 | signature_invalid | Signature does not verify, or the scorecard changed since it was shown (SignatureInvalid) |
-| 403 | forbidden_role | Role missing, unknown, or not allowed (PermissionDenied) |
+| 401 | unauthenticated | Live endpoints: no token, a malformed Authorization header, or an unknown token. The message does not say which |
+| 403 | forbidden_role | Role unknown, inactive, or not allowed, including every cadet write (PermissionDenied) |
 | 404 | not_found | No such session, event, cadet, or wristband (NotFound) |
 | 405 | method_not_allowed | Any PUT, PATCH, or DELETE |
 | 409 | invalid_transition | Wrong status or session type, closed session, or the cadet already has a live score (InvalidTransition) |
@@ -543,10 +551,10 @@ Attendance, arms room, receipts, export to AMS, offline buffering and resync, us
 
 ## 12. Open items for the team
 
-1. Scoring tables and the IOCT pass standard: RFI to DPE, owner Alena, due 22-Oct. Until then points come from the grader and are placeholders.
-2. Role mechanism: the stub trusts `X-Role`. The real one must map a session to a Vault `app_user` id and must never take the role from Edge.
+1. Scoring: the AFT score tables are public and in hand. Open with DPE (RFI, owner Alena): which age group and which column (M|C or F) applies to each cadet and where that data comes from (the Vault stores neither today), whether the system or the grader computes points, and the IOCT pass standard. Until then points come from the grader and are placeholders.
+2. Role mechanism: done for the six live writes in 2.1 (bearer token, role read from the Vault). Still open: how staff get a token (CAC sign in), and moving the canned endpoints to the same check as they go live.
 3. Rhemmy's L24 card says Edge parses the barcode and hashes the ID. The README and the Vault say Gatekeeper does, with a key Edge must never hold. The card text should change to match this contract.
-4. Time format: the test pack has "1:30" and the Vault schema comment shows "01:45". The Vault stores `raw_value` as given. One format (`m:ss` or `mm:ss`) should be agreed before scoring code reads it.
+4. Time format: settled as `m:ss` (the official tables write `1:29`). The Vault schema comment that shows "01:45" should be updated to match.
 5. Gate clocks: elapsed time uses only gate timestamps, so the START and END gates must share a clock or be synced. Needs Eliakim's timing spec.
 6. Who may read audit and verify endpoints (section 2).
 7. Encryption at rest (SR-4) is not built in the Vault yet, and real CAC signing is untested. Both are noted in the Vault README.

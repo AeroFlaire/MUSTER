@@ -15,7 +15,7 @@ os.environ.setdefault("MUSTER_EDIPI_KEY", "synthetic-test-key-not-a-secret-01234
 os.environ.setdefault("MUSTER_DB_KEY", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")  # synthetic
 
 import vault_bridge as bridge  # noqa: E402  (also puts the Vault on sys.path)
-from live_app import create_live_app, seed_demo  # noqa: E402
+from live_app import create_live_app, issue_demo_credentials, seed_demo  # noqa: E402
 from muster_vault import audit  # noqa: E402
 
 PACK = Path(__file__).resolve().parents[3] / "tests" / "synthetic_test_pack.json"
@@ -24,8 +24,8 @@ COMPONENTS = [("mdl_lbs", "MDL"), ("hrp_reps", "HRP"), ("sdc_time", "SDC"),
               ("plank_time", "PLK"), ("twomr_time", "2MR")]
 
 
-def hdr(role):
-    return {**H, "X-Role": role}
+def hdr(token):
+    return {**H, "Authorization": f"Bearer {token}"}
 
 
 @unittest.skipUnless(PACK.exists(), "shared synthetic data pack not found")
@@ -33,9 +33,10 @@ class LiveVaultTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "vault.db"
-        self.session = seed_demo(self.db, PACK)
+        self.session, users = seed_demo(self.db, PACK)
+        store, self.tokens = issue_demo_credentials(users)
         self.pack = json.loads(PACK.read_text(encoding="utf-8"))
-        app = create_live_app(self.db)
+        app = create_live_app(self.db, store)
         app.logger.disabled = True  # the forced failures below would print tracebacks
         self.client = app.test_client()
 
@@ -54,7 +55,7 @@ class LiveVaultTest(unittest.TestCase):
         return self.q(f"SELECT COUNT(*) AS n FROM {table}")[0]["n"]
 
     def post(self, path, role, body=None):
-        return self.client.post(path, headers=hdr(role), json=body)
+        return self.client.post(path, headers=hdr(self.tokens[role]), json=body)
 
     def open_event(self, cadet=0, role="grader", **extra):
         return self.post(f"/v0/sessions/{self.session}/events", role,
@@ -219,7 +220,6 @@ class LiveVaultTest(unittest.TestCase):
         r = self.open_event()
         self.assertNotIn("9000000001", r.get_data(as_text=True))
         conn = bridge.connect(self.db)
-        # Every value in every table (SQLCipher connections have no iterdump()).
         tables = [r["name"] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table'")]
         dump = "\n".join(str(v) for t in tables
@@ -236,7 +236,7 @@ class LiveVaultTest(unittest.TestCase):
         self.assertEqual(got, want)
 
     def test_other_endpoints_still_return_the_stub_examples(self):
-        r = self.client.get("/v0/health", headers=hdr("oic"))
+        r = self.client.get("/v0/health", headers={**H, "X-Role": "oic"})
         self.assertEqual(r.status_code, 200)
         self.assertTrue(r.get_json()["stub"])
 

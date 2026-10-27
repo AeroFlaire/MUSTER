@@ -25,11 +25,10 @@ except ImportError:  # running from the repo: the Vault package sits in <repo>/v
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "vault"))
     import muster_vault  # noqa: F401
 
-from muster_vault import db, fitness, identity
+from muster_vault import db, fitness, identity, ioct
 from muster_vault.errors import (ChallengeError, InvalidTransition, NotFound,
                                  PermissionDenied, SignatureInvalid, TimingError, VaultError)
 
-SCHEMA_PATH = Path(muster_vault.__file__).parent / "schema.sql"
 
 # Test pack format only. The real CAC PDF417 parser is not built (contract section 11).
 _SYNTHETIC_BARCODE = re.compile(r"^PDF417_TEST_DATA_(\d{10})_END$")
@@ -65,12 +64,11 @@ def init_schema(conn):
     db.init_schema(conn)
 
 
-def actor_for_role(conn, role):
-    """DEV ONLY. The real way a request maps to an app_user is an open item
-    (contract section 12). Until then: the first active user holding that role."""
-    row = conn.execute("SELECT id FROM app_user WHERE role = ? AND active = 1 ORDER BY id LIMIT 1",
-                       (role,)).fetchone()
-    return None if row is None else row["id"]
+def role_of(conn, actor_id):
+    """The caller's role AS THE VAULT HAS IT, or None if the user is missing or inactive.
+    The role is never taken from the request."""
+    row = conn.execute("SELECT role, active FROM app_user WHERE id = ?", (actor_id,)).fetchone()
+    return row["role"] if row is not None and row["active"] else None
 
 
 # ---- error mapping ----------------------------------------------------------
@@ -124,3 +122,26 @@ def add_component(conn, actor_id, event_id, component, raw_value, points=None):
 def submit(conn, actor_id, event_id):
     fitness.submit(conn, actor_id, event_id)
     return _view(conn, event_id)
+
+
+# ---- IOCT (timing) writes ----------------------------------------------------
+# Same rule: one Vault call per POST, and the Vault writes the record and its audit entry
+# in one transaction.
+
+def ioct_pair(conn, actor_id, session_id, barcode, tag_uid, client_ref=None):
+    edipi_hash = hash_barcode(barcode)
+    event_id = ioct.pair(conn, actor_id, session_id, edipi_hash, tag_uid, client_ref)
+    return _view(conn, event_id)
+
+
+def gate_read(conn, actor_id, session_id, tag_uid, gate, read_at_ms, gate_device,
+              client_ref=None):
+    read_id = ioct.record_gate_read(conn, actor_id, session_id, tag_uid, gate, read_at_ms,
+                                    gate_device, client_ref)
+    return {"gate_read_id": read_id}
+
+
+def compute_run(conn, actor_id, event_id):
+    elapsed_ms = ioct.compute_run(conn, actor_id, event_id)
+    return {"event_id": event_id, "elapsed_ms": elapsed_ms,
+            "elapsed": fitness.format_elapsed(elapsed_ms)}

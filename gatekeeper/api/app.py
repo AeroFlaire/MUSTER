@@ -244,7 +244,7 @@ def create_app():
         resp.headers["Access-Control-Allow-Origin"] = "*"
         resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         resp.headers["Access-Control-Allow-Headers"] = (
-            "Content-Type, X-Contract-Version, X-Role, X-Stub-Scenario")
+            "Content-Type, X-Contract-Version, X-Role, X-Stub-Scenario, Authorization")
         resp.headers["Access-Control-Max-Age"] = "600"
         return resp
 
