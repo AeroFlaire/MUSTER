@@ -1,2 +1,3 @@
 Flask>=3.0
 cryptography
+sqlcipher3-wheels>=0.5.7

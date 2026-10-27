@@ -16,6 +16,19 @@ from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from muster_vault import db, fitness, identity, ioct
 
 TEST_HMAC_KEY = b"test-only-key-not-for-production-0123456789"
+# Database key for tests that use a real file. Synthetic, never a real secret.
+TEST_DB_KEY = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+
+
+def dump_all_rows(conn) -> str:
+    """Every value in every table, as one string (SQLCipher has no iterdump())."""
+    tables = [r["name"] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")]
+    parts = []
+    for t in tables:
+        for row in conn.execute(f'SELECT * FROM "{t}"'):
+            parts.extend(str(v) for v in tuple(row))
+    return "\n".join(parts)
 
 
 class FakeCAC:
@@ -65,6 +78,11 @@ def conn():
 
 @pytest.fixture
 def world(conn) -> World:
+    return build_world(conn)
+
+
+def build_world(conn) -> World:
+    """Staff, three synthetic cadets, two sessions, three tags — on any connection."""
     admin = identity.bootstrap_admin(conn, "Admin (synthetic)")
     grader_cac = FakeCAC("2000000001")
     w = World(
