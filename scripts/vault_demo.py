@@ -13,6 +13,7 @@ Software keys stand in for CACs. Real-card signing has NOT been tested yet
 from __future__ import annotations
 
 import os
+import sqlite3  # the standard module: plays the outsider with no key
 import sys
 import tempfile
 
@@ -44,8 +45,9 @@ def step(text: str) -> None:
 
 def main() -> int:
     path = os.path.join(tempfile.mkdtemp(), "muster-demo.db")
-    conn = db.connect(path)
-    print(f"Demo database: {path}")
+    # Throwaway key for this run only (a real deployment reads MUSTER_DB_KEY).
+    conn = db.connect(path, key=db.new_key())
+    print(f"Demo database: {path}  (encrypted with SQLCipher, AES-256)")
 
     step("Setup: staff, two synthetic cadets, CAC keys enrolled")
     admin = identity.bootstrap_admin(conn, "Demo Admin")
@@ -107,6 +109,24 @@ def main() -> int:
     step("Integrity checks — everything clean")
     print(f"  audit chain: {audit.verify(conn)}")
     print(f"  score {ev} matches what the cadet signed: {fitness.verify_event(conn, ev)['ok']}")
+
+    step("OUTSIDER: copies the database file but does not have the key")
+    conn.execute("PRAGMA wal_checkpoint(FULL)")
+    raw = b"".join(open(path + sfx, "rb").read() for sfx in ("", "-wal")
+                   if os.path.exists(path + sfx))
+    # Search terms of 5+ characters: encrypted bytes are random, so a 3-letter word
+    # like "Doe" can turn up by pure chance in a large file.
+    for needle in ["Arvin Gym", "Hayes Gym", "TAG-017", "15:10",
+                   cadets["Doe"].edipi_hash]:
+        print(f"  plain-text search for {needle[:16]!r:<20} -> "
+              f"{'FOUND' if needle.encode() in raw else 'not found'}")
+    try:
+        sqlite3.connect(path).execute("SELECT * FROM cadet").fetchall()
+        print("  opened it with plain sqlite3 (this should NOT happen)")
+    except sqlite3.DatabaseError as exc:
+        print(f"  plain sqlite3 refuses it: {exc}")
+    print("  The rest of the demo is an INSIDER who has the key — encryption can't stop")
+    print("  them, so the audit chain and the cadet's signature have to catch them.")
 
     step("ATTACK 1: someone edits Doe's 2-mile points directly in SQL (88 -> 100)")
     conn.execute("UPDATE fitness_component SET points = 100 "

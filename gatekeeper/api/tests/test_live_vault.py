@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 os.environ.setdefault("MUSTER_EDIPI_KEY", "synthetic-test-key-not-a-secret-0123456789")
+os.environ.setdefault("MUSTER_DB_KEY", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")  # synthetic
 
 import vault_bridge as bridge  # noqa: E402  (also puts the Vault on sys.path)
 from live_app import create_live_app, seed_demo  # noqa: E402
@@ -218,7 +219,11 @@ class LiveVaultTest(unittest.TestCase):
         r = self.open_event()
         self.assertNotIn("9000000001", r.get_data(as_text=True))
         conn = bridge.connect(self.db)
-        dump = "\n".join(conn.iterdump())
+        # Every value in every table (SQLCipher connections have no iterdump()).
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'")]
+        dump = "\n".join(str(v) for t in tables
+                         for row in conn.execute(f'SELECT * FROM "{t}"') for v in tuple(row))
         conn.close()
         self.assertNotIn("9000000001", dump)
         self.assertNotIn("PDF417_TEST_DATA", dump)

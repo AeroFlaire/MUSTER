@@ -120,7 +120,8 @@ def test_direct_db_edit_after_signing_is_detected(world):
                        "AND component = '2MR'", (ev,))
     result = fitness.verify_event(world.conn, ev)
     assert not result["ok"]
-    assert "differs from what the cadet signed" in result["problems"][0]
+    assert any("differs from what the cadet signed" in p for p in result["problems"])
+    assert any("2MR: database says" in p and "audit log says" in p for p in result["problems"])
 
 
 def test_one_live_score_per_cadet_per_session(world):

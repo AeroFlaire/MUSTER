@@ -11,6 +11,7 @@ Live endpoints (they write to the Vault):
 
 Run from gatekeeper/api/ (PowerShell):
   $env:MUSTER_EDIPI_KEY = "a-demo-secret-of-at-least-32-characters"
+  $env:MUSTER_DB_KEY = (python -c "import secrets; print(secrets.token_hex(32))")  # keep it; never commit it
   python live_app.py --reset       # builds a fresh demo database from the test pack
   python live_app.py               # reuses it
 

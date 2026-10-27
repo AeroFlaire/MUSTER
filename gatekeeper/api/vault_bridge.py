@@ -16,7 +16,6 @@ never stored, logged, or returned.
 """
 
 import re
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -26,7 +25,7 @@ except ImportError:  # running from the repo: the Vault package sits in <repo>/v
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "vault"))
     import muster_vault  # noqa: F401
 
-from muster_vault import fitness, identity
+from muster_vault import db, fitness, identity
 from muster_vault.errors import (ChallengeError, InvalidTransition, NotFound,
                                  PermissionDenied, SignatureInvalid, TimingError, VaultError)
 
@@ -56,17 +55,14 @@ def hash_barcode(raw):
 # ---- connection -------------------------------------------------------------
 
 def connect(db_path):
-    """Plain sqlite3 set up the way the Vault's db.transaction() expects:
-    manual transactions (isolation_level=None), rows as mappings, foreign keys on.
-    TODO(Arjo): swap for the Vault's own connect helper if it has one."""
-    conn = sqlite3.connect(db_path, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    """Open the Vault database through the Vault's own helper (SQLCipher-encrypted,
+    manual transactions, rows as mappings, foreign keys on, schema in place).
+    The database key comes from the MUSTER_DB_KEY environment variable."""
+    return db.connect(db_path)
 
 
 def init_schema(conn):
-    conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    db.init_schema(conn)
 
 
 def actor_for_role(conn, role):
