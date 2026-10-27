@@ -9,6 +9,7 @@ Database files are encrypted; set MUSTER_DB_KEY first (see `new-key`).
     python -m muster_vault history  --db muster.db --entity fitness_event --id 3
     python -m muster_vault check    --db muster.db --event 3
     python -m muster_vault integrity --db muster.db      # chain + every score vs. its audit trail
+    python -m muster_vault find     --db muster.db --text 9000000001   # is this stored anywhere?
     python -m muster_vault retention --db muster.db      # settings + records past retention
     python -m muster_vault set-retention --db muster.db --actor 1 --function FITNESS \
                                          --days 1825 --source "AR 25-400-2, ..."
@@ -42,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
     sp = sub.add_parser("check", help="does a score still match what the cadet signed?")
     sp.add_argument("--db", required=True)
     sp.add_argument("--event", type=int, required=True)
+    sp = sub.add_parser("find", help="search the decrypted database for a text (shows where, not what)")
+    sp.add_argument("--db", required=True)
+    sp.add_argument("--text", required=True)
     sp = sub.add_parser("set-retention", help="admin: set one function's retention period")
     sp.add_argument("--db", required=True)
     sp.add_argument("--actor", type=int, required=True, help="app_user id of the admin")
@@ -93,6 +97,25 @@ def _run(args) -> int:
         result = fitness.verify_event(conn, args.event)
         print(json.dumps(result, indent=2))
         return 0 if result["ok"] else 1
+    if args.cmd == "find":
+        # Opened WITH the key: searches the decrypted contents. Prints where a match
+        # is (table.column, count), never the matching values themselves.
+        hits = {}
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'")]
+        for t in tables:
+            cur = conn.execute(f'SELECT * FROM "{t}"')
+            cols = [d[0] for d in cur.description]
+            for row in cur:
+                for col, v in zip(cols, tuple(row)):
+                    s = v.decode("utf-8", "replace") if isinstance(v, bytes) else str(v)
+                    if args.text in s:
+                        hits[f"{t}.{col}"] = hits.get(f"{t}.{col}", 0) + 1
+        if not hits:
+            print(f"0 matches for {args.text!r} anywhere in the database (all tables, all rows)")
+        for where, n in sorted(hits.items()):
+            print(f"{n:>4} match(es) in {where}")
+        return 0
     if args.cmd == "integrity":
         rep = fitness.integrity_report(conn)
         print(f"Audit chain : {rep['chain']}")

@@ -249,3 +249,18 @@ def test_cli_new_key_and_retention(tmp_path, monkeypatch, capsys):
     assert "ATTENDANCE" in out and "365 days" in out and "PLACEHOLDER, not policy" in out
     monkeypatch.setenv("MUSTER_DB_KEY", OTHER_KEY)
     assert cli.main(["verify", "--db", path]) == 1  # wrong key: clean error, not a traceback
+
+
+def test_cli_find_reports_where_not_what(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("MUSTER_DB_KEY", TEST_DB_KEY)
+    path = str(tmp_path / "f.db")
+    conn = db.connect(path)
+    w = build_world(conn)
+    signed_aft(w)
+    raw_id = w.cadets["alpha"][1].edipi
+    conn.close()
+    assert cli.main(["find", "--db", path, "--text", raw_id]) == 0
+    assert "0 matches" in capsys.readouterr().out          # raw DoD ID stored nowhere
+    assert cli.main(["find", "--db", path, "--text", "Alpha"]) == 0
+    out = capsys.readouterr().out
+    assert "cadet.last_name" in out and "Alpha" not in out.replace("'Alpha'", "")
