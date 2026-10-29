@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MUSTER Mobile Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f9; padding: 10px; margin: 0; }
+        #reader { width: 100%; max-width: 600px; margin: auto; background: black; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        #result { margin-top: 20px; font-weight: bold; font-size: 1.2em; color: #0056b3; word-break: break-all; padding: 10px; }
+        .instructions { font-size: 0.9em; color: #555; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <h3>CAC Barcode Scanner</h3>
+    <p class="instructions">Hold phone 6-8 inches away. Tap screen to focus. Scan any barcode.</p>
+    
+    <div id="reader"></div>
+    <p id="result">Awaiting scan...</p>
+
+    <script>
+        function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById('result').innerText = "Transmitting: " + decodedText;
+            html5QrcodeScanner.pause(); 
+
+            fetch('/api/muster/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cac_string: decodedText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerText = "Success! Ready for next scan.";
+                setTimeout(() => html5QrcodeScanner.resume(), 2000);
+            })
+            .catch(error => {
+                document.getElementById('result').innerText = "Network Error.";
+                setTimeout(() => html5QrcodeScanner.resume(), 2000);
+            });
+        }
+
+        const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }, // Standard square box to speed up processing
+            videoConstraints: {
+                facingMode: "environment",
+                width: { ideal: 1920 }, // Standard stable 1080p
+                height: { ideal: 1080 }
+            }
+            // Removed experimental hardware detector and format filters for maximum compatibility
+        };
+
+        let html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
+</html>
