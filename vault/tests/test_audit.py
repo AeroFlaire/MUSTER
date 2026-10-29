@@ -1,5 +1,4 @@
 """SR-3: the audit log is append-only and any edit/deletion is detectable."""
-import sqlite3
 
 import pytest
 
@@ -15,9 +14,9 @@ def test_fresh_chain_passes(world):
 
 
 def test_triggers_block_update_and_delete(world):
-    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+    with pytest.raises(db.IntegrityError, match="append-only"):
         world.conn.execute("UPDATE audit_log SET action = 'X' WHERE seq = 1")
-    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+    with pytest.raises(db.IntegrityError, match="append-only"):
         world.conn.execute("DELETE FROM audit_log WHERE seq = 1")
 
 

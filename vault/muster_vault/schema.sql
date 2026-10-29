@@ -297,3 +297,17 @@ CREATE TABLE IF NOT EXISTS weapon_status (
     last_event_id    INTEGER REFERENCES si_event(id),
     CHECK ((state = 'OUT') = (holder_cadet_id IS NOT NULL))
 );
+
+-- -----------------------------------------------------------------------------
+-- RETENTION (SR-4, Privacy Act) — how long each kind of record is kept
+-- -----------------------------------------------------------------------------
+-- One row per function once an admin sets it. No row = the PLACEHOLDER default in
+-- muster_vault/retention.py (pending the retention RFI). Every change is also an
+-- audit_log entry, so "who shortened retention, and when" is always answerable.
+CREATE TABLE IF NOT EXISTS retention_setting (
+    function  TEXT PRIMARY KEY CHECK (function IN ('FITNESS', 'IOCT', 'ATTENDANCE', 'ARMS')),
+    days      INTEGER NOT NULL CHECK (days BETWEEN 1 AND 36500),
+    source    TEXT NOT NULL,            -- where the number came from (policy citation)
+    set_by    INTEGER NOT NULL REFERENCES app_user(id),
+    set_at    TEXT NOT NULL
+);

@@ -71,3 +71,8 @@ local-db/
 Thumbs.db
 gatekeeper/api/muster_demo.db
 gatekeeper/api/muster_demo_credentials.json
+gatekeeper/api/muster_demo.db
+gatekeeper/api/muster_demo.db-wal
+gatekeeper/api/muster_demo.db-shm
+gatekeeper/api/muster_demo_credentials.json
+docs/interfaces/demo_tokens.js

@@ -7,7 +7,7 @@ from muster_vault import (arms, attendance, audit, export, fitness, identity, re
 from muster_vault.errors import (InvalidTransition, PermissionDenied, SignatureInvalid,
                                  VaultError)
 
-from .conftest import TEST_HMAC_KEY, signed_aft
+from .conftest import TEST_HMAC_KEY, dump_all_rows, signed_aft
 
 
 # ---- Attendance ------------------------------------------------------------
@@ -137,7 +137,7 @@ def test_raw_edipi_never_accepted(world):
 
 def test_no_raw_edipi_anywhere_in_database(world):
     signed_aft(world)
-    dump = "\n".join(world.conn.iterdump())
+    dump = dump_all_rows(world.conn)
     for _, cac in world.cadets.values():
         assert cac.edipi not in dump
 
