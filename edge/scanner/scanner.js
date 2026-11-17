@@ -34,14 +34,14 @@
   const $ = (id) => document.getElementById(id);
   const el = {
     video: $("video"), viewfinder: $("viewfinder"), start: $("start"), stop: $("stop"),
-    torch: $("torch"), status: $("status"), startPanel: $("start-panel"), result: $("result"),
+    torch: $("torch"), zoom: $("zoom"), status: $("status"), startPanel: $("start-panel"), result: $("result"),
     again: $("again"),
   };
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
   let stream = null, timer = null, busy = false, attempts = 0, startedAt = 0;
-  let clearTimer = null, torchOn = false;
+  let clearTimer = null, torchOn = false, zoomed = false, zoomCap = null;
 
   function setStatus(text, bad) {
     el.status.textContent = text;
@@ -89,6 +89,11 @@
     try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch (_) {}
     const caps = track.getCapabilities ? track.getCapabilities() : {};
     el.torch.hidden = !caps.torch;
+    // Optical/digital zoom, where the browser allows it (Android Chrome; not iPhone Safari).
+    zoomCap = caps.zoom && caps.zoom.max >= 1.5 ? caps.zoom : null;
+    el.zoom.hidden = !zoomCap;
+    zoomed = false;
+    el.zoom.textContent = "Zoom 2x";
 
     el.video.srcObject = stream;
     await el.video.play().catch(() => {});
@@ -110,6 +115,16 @@
     el.video.srcObject = null;
     el.viewfinder.hidden = true;
     el.startPanel.hidden = false;
+  }
+
+  async function toggleZoom() {
+    if (!stream || !zoomCap) return;
+    zoomed = !zoomed;
+    const level = zoomed ? Math.min(2, zoomCap.max) : Math.max(1, zoomCap.min || 1);
+    try {
+      await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ zoom: level }] });
+      el.zoom.textContent = zoomed ? "Zoom 1x" : "Zoom 2x";
+    } catch (_) { zoomed = false; }
   }
 
   async function toggleTorch() {
@@ -163,6 +178,8 @@
       ctx.restore();
       const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
       attempts += 1;
+      if (attempts % 8 === 0 && !el.status.classList.contains("bad"))
+        setStatus(`Looking for a barcode… (camera ${vw}×${vh}, ${attempts} tries)`);
       const results = await ZXingWASM.readBarcodes(image, READER_OPTIONS);
       const hit = results.find((r) => r.isValid);
       if (hit && timer) onDecoded(hit.text, hit.format);
@@ -221,6 +238,7 @@
   el.again.addEventListener("click", startCamera);
   el.stop.addEventListener("click", () => { stopCamera(); setStatus(""); });
   el.torch.addEventListener("click", toggleTorch);
+  el.zoom.addEventListener("click", toggleZoom);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { stopCamera(); clearResult(); }
   });

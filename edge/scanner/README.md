@@ -112,5 +112,6 @@ What was checked before this was committed:
 - **The front barcode also holds date of birth and card dates.** The parser ignores them, and
   nothing downstream should ever ask for them.
 
-The earlier attempt (`edge/scanner.html` + `edge/server.py`) is replaced by this folder.
-`edge/server.py` prints the raw barcode to its log, so don't use it with a real card.
+The earlier attempt (square-box page, a server that logged and forwarded the raw barcode,
+and a tunnel program) was removed. `edge/scanner.html` now just redirects here. The header
+shows **build 3**: if you don't see it, you're on an old copy of the page.
