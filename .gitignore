@@ -76,3 +76,7 @@ gatekeeper/api/muster_demo.db-wal
 gatekeeper/api/muster_demo.db-shm
 gatekeeper/api/muster_demo_credentials.json
 docs/interfaces/demo_tokens.js
+
+# Phone scanner: self-signed certificate made by edge/scanner/serve.py
+edge/scanner/.cert/
+test_front_cards.pdf
