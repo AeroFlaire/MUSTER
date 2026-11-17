@@ -65,7 +65,7 @@ class LiveVaultTest(unittest.TestCase):
         res = self.pack["cadets"][cadet]["aft_results"]
         for key, code in COMPONENTS:
             r = self.post(f"/v0/events/{event_id}/components", "grader",
-                          {"component": code, "raw_value": str(res[key]), "points": 100})
+                          {"component": code, "raw_value": str(res[key]), "age_group": "17-21", "scoring_column": "F"})
             self.assertEqual(r.status_code, 200, r.get_json())
 
     def break_audit_writes(self):
@@ -99,7 +99,7 @@ class LiveVaultTest(unittest.TestCase):
         eid = self.open_event().get_json()["event_id"]
         comps, logs = self.count("fitness_component"), self.count("audit_log")
         r = self.post(f"/v0/events/{eid}/components", "grader",
-                      {"component": "MDL", "raw_value": "340", "points": 100})
+                      {"component": "MDL", "raw_value": "340", "age_group": "17-21", "scoring_column": "F"})
         self.assertEqual(r.status_code, 200, r.get_json())
         self.assertEqual(self.count("fitness_component"), comps + 1)
         self.assertEqual(self.count("audit_log"), logs + 1)
@@ -135,7 +135,7 @@ class LiveVaultTest(unittest.TestCase):
         comps, logs = self.count("fitness_component"), self.count("audit_log")
         self.break_audit_writes()
         r = self.post(f"/v0/events/{eid}/components", "grader",
-                      {"component": "MDL", "raw_value": "340", "points": 100})
+                      {"component": "MDL", "raw_value": "340", "age_group": "17-21", "scoring_column": "F"})
         self.assertEqual(r.status_code, 500)
         self.assertEqual(self.count("fitness_component"), comps)
         self.assertEqual(self.count("audit_log"), logs)

@@ -100,3 +100,30 @@ Leave it running. Open `docs\interfaces\live_demo.html` in your browser. Pick an
 - **Why 401 and 403?** 401 means "we do not know who you are", 403 means "we know, and you may not".
 - **Why not check the role in the web app?** The web app is untrusted. The Gatekeeper checks every request and the Vault checks again.
 - **What stops a record being saved without its audit entry?** Both are written inside one database transaction. If either fails, both are undone.
+
+
+---
+
+# Sprint 2 additions (L33 review, 19 Nov)
+
+`python demo_full_run.py --pause` now has six scenes. Scene 5 is new:
+
+| Claim | Where it shows | Criterion |
+|---|---|---|
+| An instructor marks their own section | Scene 5: 10 of 10 cadets marked, 1 record and 1 audit entry each | PBI-09 criterion 1 |
+| Another instructor's section is refused and logged | Scene 5: 3 attempts, each 403, each 1 rejected-attempt audit entry, 0 records | PBI-09 criterion 2 |
+| A cadet not on the roster is refused | Scene 5: 3 attempts, 403 | PBI-09 criterion 3 |
+| 0 raw barcodes or IDs stored | `test_vault_holds_no_raw_barcode_or_id` in `tests/test_live_attendance.py` | PBI-09 criterion 4 |
+| Tamper is caught | Scene 6 (was scene 5) | PBI-10 |
+
+API steps to say out loud (about 40 seconds):
+
+1. "Scene 1: a grader scans, enters five results, and submits. The Gatekeeper looks up the points from the official tables, nobody types a score, and the response shows the total and PASS or FAIL."
+2. "Scene 2: every access level against every write. 42 attempts, 0 records, and a faked role header is refused."
+3. "Scene 3: gate reads come in, the Vault computes the time, and the run is graded. The DPE has not given the IOCT standard, so it says PENDING_STANDARD instead of guessing."
+4. "Scene 5: Instructor A marks their section. Instructor B tries A's section and strangers, gets 403 every time, and each refusal is written to the audit log."
+5. "Scene 6: the audit chain verifies, one entry is edited, and the verifier names it."
+
+Then run `python run_security_tests.py` and show `docs/evidence/gatekeeper-tests-1-2-results.md`.
+
+Not done, say so plainly: real CAC sign-in, the real CAC barcode parser, real gate hardware, the DPE IOCT standard, the manual typed-time fallback for a failed gate (needs a Vault field), and the AMS export (Arjo).

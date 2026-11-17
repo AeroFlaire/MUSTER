@@ -31,6 +31,7 @@ from flask import jsonify, request
 
 import app as stub
 import auth
+import scoring
 import vault_bridge as bridge
 
 HERE = Path(__file__).parent
@@ -43,9 +44,14 @@ LIVE = {
     "POST /v0/sessions/<int:session_id>/events": ("open_event", 201),
     "POST /v0/events/<int:event_id>/components": ("add_component", 200),
     "POST /v0/events/<int:event_id>/submit": ("submit", 200),
+    "GET /v0/scoring/standards": ("scoring_standards", 200),
     "POST /v0/sessions/<int:session_id>/ioct/pair": ("ioct_pair", 201),
     "POST /v0/sessions/<int:session_id>/gate-reads": ("gate_read", 201),
     "POST /v0/events/<int:event_id>/ioct/compute": ("compute_run", 200),
+    "POST /v0/events/<int:event_id>/reopen": ("reopen", 200),
+    "POST /v0/events/<int:event_id>/supersede": ("supersede", 201),
+    "POST /v0/attendance/marks": ("attendance_mark", 201),
+    "GET /v0/attendance/sections/<int:section_id>/roster": ("attendance_roster", 200),
 }
 
 DEMO_AFT_SESSION = 1
@@ -59,15 +65,30 @@ def _dispatch(name, conn, actor, kw, body):
                                  body.get("client_ref"))
     if name == "add_component":
         return bridge.add_component(conn, actor, kw["event_id"], body["component"],
-                                    body["raw_value"], body.get("points"))
+                                    body["raw_value"], body["age_group"], body["scoring_column"])
     if name == "submit":
         return bridge.submit(conn, actor, kw["event_id"])
+    if name == "scoring_standards":
+        return scoring.standards_summary()
     if name == "ioct_pair":
         return bridge.ioct_pair(conn, actor, kw["session_id"], body["barcode"],
                                 body["tag_uid"], body.get("client_ref"))
     if name == "gate_read":
         return bridge.gate_read(conn, actor, kw["session_id"], body["tag_uid"], body["gate"],
                                 body["read_at_ms"], body["gate_device"], body.get("client_ref"))
+    if name == "reopen":
+        return bridge.reopen(conn, actor, kw["event_id"], body["note"])
+    if name == "supersede":
+        return bridge.supersede(conn, actor, kw["event_id"], body["reason"])
+    if name == "attendance_mark":
+        return bridge.attendance_mark(conn, actor, body["section_id"], body["class_date"],
+                                      body.get("status", "PRESENT"), body["barcode"],
+                                      body.get("client_ref"))
+    if name == "attendance_roster":
+        day = request.args.get("class_date", "")
+        if not stub.DATE_RE.match(day):
+            raise ValueError("Field 'class_date': must be YYYY-MM-DD (query parameter)")
+        return bridge.attendance_roster(conn, actor, kw["section_id"], day)
     return bridge.compute_run(conn, actor, kw["event_id"])
 
 
@@ -134,7 +155,7 @@ def seed_demo(db_path, pack_path):
     synthetic cadets from the shared data pack, a gate station, an open AFT session (id 1),
     an open IOCT session (id 2), and wristbands TAG-017 to TAG-019.
     Returns (aft_session_id, {role: vault user id})."""
-    from muster_vault import fitness, identity, ioct
+    from muster_vault import attendance, fitness, identity, ioct
 
     for suffix in ("", "-wal", "-shm"):
         Path(str(db_path) + suffix).unlink(missing_ok=True)
@@ -149,11 +170,22 @@ def seed_demo(db_path, pack_path):
         "compiler_station": identity.add_user(conn, admin, "Demo Compiler Station",
                                               "compiler_station"),
         "gate_station": identity.add_user(conn, admin, "Demo Gate", "gate_station"),
+        "instructor": identity.add_user(conn, admin, "Demo Instructor A", "instructor"),
+        "instructor_b": identity.add_user(conn, admin, "Demo Instructor B", "instructor"),
     }
     pack = json.loads(Path(pack_path).read_text(encoding="utf-8"))
+    cadet_ids = []
     for c in pack["cadets"]:
         first, last = c["fake_name"].split(" ", 1)
-        identity.add_cadet(conn, admin, identity.hash_edipi(c["edipi"], key), last, first)
+        cadet_ids.append(identity.add_cadet(conn, admin, identity.hash_edipi(c["edipi"], key),
+                                            last, first))
+    # Attendance: section 1 (Instructor A) has all ten cadets, section 2 (Instructor B) has only
+    # the first, so the other nine are "not on the roster" for B.
+    for sec, instr, who in ((1, "instructor", cadet_ids), (2, "instructor_b", cadet_ids[:1])):
+        sid = attendance.add_section(conn, admin, "PE101", f"G{sec}", "L1", "AY27-1", users[instr])
+        assert sid == sec
+        for cid in who:
+            attendance.enroll(conn, admin, sid, cid)
     session = fitness.open_session(conn, users["oic"], "AFT", "2026-10-22", "Test Gym")
     ioct_session = fitness.open_session(conn, users["oic"], "IOCT", "2026-10-22", "Test Track")
     assert (session, ioct_session) == (DEMO_AFT_SESSION, DEMO_IOCT_SESSION)

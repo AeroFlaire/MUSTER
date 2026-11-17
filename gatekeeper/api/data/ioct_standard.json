@@ -1,0 +1,6 @@
+{
+  "name": "IOCT time standard",
+  "status": "pending_dpe",
+  "status_note": "The DPE has not answered the IOCT standard RFI. No pass time is set, so a timed run is reported as PENDING_STANDARD until the DPE gives the number. Put it in max_elapsed_seconds.",
+  "max_elapsed_seconds": null
+}

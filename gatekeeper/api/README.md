@@ -99,13 +99,24 @@ does both in one transaction), and only a caller with the right role can make th
 | Endpoint | Writes | Roles |
 |---|---|---|
 | POST /v0/sessions/{id}/events | one `fitness_event` + one `EVENT_OPENED` audit entry | grader, oic |
-| POST /v0/events/{id}/components | one `fitness_component` + one `COMPONENT_ENTERED` audit entry | grader, oic |
+| POST /v0/events/{id}/components | one `fitness_component` (points computed from the official tables) + one `COMPONENT_ENTERED` audit entry | grader, oic |
+| GET /v0/scoring/standards | none. Reads the scoring data file | grader, oic, admin |
 | POST /v0/events/{id}/submit | status change to SUBMITTED + one `EVENT_SUBMITTED` audit entry | grader, oic |
 | POST /v0/sessions/{id}/ioct/pair | one IOCT event + a wristband pairing, 2 audit entries | grader, oic |
 | POST /v0/sessions/{id}/gate-reads | one raw `gate_read` + one `GATE_READ` audit entry | gate_station, oic |
 | POST /v0/events/{id}/ioct/compute | one `ioct_run` (time computed by the Vault) + one `RUN_COMPUTED` audit entry | grader, compiler_station, oic |
+| POST /v0/events/{id}/reopen | status back to ENTERED + one `EVENT_REOPENED` audit entry | oic, admin |
+| POST /v0/events/{id}/supersede | old event marked SUPERSEDED, a new event that points at it (`supersedes_event_id`) + audit entries | oic, admin |
+| POST /v0/attendance/marks | one `attendance` row + one `ATTENDANCE_MARKED` audit entry. A refused write (another instructor's section, or a cadet not on the roster) writes 0 rows and one `ATTENDANCE_REJECTED` entry | instructor (own section only) |
+| GET /v0/attendance/sections/{id}/roster?class_date= | none | instructor (own section only) |
 
-Every other endpoint (signing, dispute, reopen, supersede, reads, audit) still returns its canned example and still reads `X-Role`.
+Every other endpoint (signing, dispute, reads, audit) still returns its canned example and still reads `X-Role`.
+
+### Scoring (contract v1, PBI-07)
+
+`scoring.py` loads `data/aft_scoring_2025.json`, the official Army Fitness Test score tables (approved 15 May 2025, effective 1 June 2025), for all five events, ten age groups, and both columns (M|C and F). The grader sends the raw result, `age_group`, and `scoring_column`. The Gatekeeper looks up the points and the Vault saves them. A request that sends `points` is refused. Submit returns a `grading` block with the total and PASS, FAIL, or INCOMPLETE.
+
+Every graded result is labeled `pending_dpe`: the tables are official but the DPE has not confirmed which standards apply to cadets, and the pass rule (60 points on every event) is a placeholder. Tests: `tests/test_scoring.py` (25 hand-checked cases from the printed tables, 5 per event) and `tests/test_live_scoring.py`.
 
 ### Who may call (SR-1)
 
@@ -156,6 +167,19 @@ Known gaps (also in the contract's open items): the real CAC barcode parser is n
 format only), and staff do not yet get tokens by signing in with a CAC. Tests:
 `python -m unittest discover -s tests -v`. They need the Vault package (`<repo>/vault`) and its
 `cryptography` dependency.
+
+### IOCT scoring, corrections and attendance (L31, L32)
+
+* A computed IOCT run carries a `grading` block. The DPE has not given the IOCT standard, so `result` is `PENDING_STANDARD`. When they answer, type the pass time in seconds into `data/ioct_standard.json` (`max_elapsed_seconds`) and it grades PASS or FAIL. The time is never changed by grading.
+* Corrections never overwrite: `supersede` keeps the old event and opens a new one that points at it. Both corrections are OIC only.
+* Attendance: the Vault enforces own-section and on-the-roster. The Gatekeeper adds the rejected-attempt audit entry (a refused Vault write rolls back, so on its own it would leave no trace). The entry holds the section, date and reason only.
+* Demo accounts: `instructor` owns section 1 (all ten cadets), `instructor_b` owns section 2 (only the first cadet).
+
+## Security Tests 1 and 2
+
+    python run_security_tests.py
+
+Writes the results to `docs/evidence/gatekeeper-tests-1-2-results.md` (Test 1: fake record attempts, Test 2: out-of-section attendance writes). Exit code 1 if any check fails.
 
 ## Sprint 1 review demo (one laptop, every access level)
 

@@ -64,7 +64,7 @@
   <button id="run">Run AFT scorecard: open, enter 5 results, submit</button>
   <div id="banner" class="banner" role="status" aria-live="polite"></div>
   <div id="log" class="log"></div>
-  <p class="note">Points sent are placeholders (100 each) until DPE confirms which age group and column apply. The cadet signing step is not live yet.</p>
+  <p class="note">Points are worked out by the Gatekeeper from the official AFT score tables (age group 17-21, column M|C). The DPE has not yet confirmed which standards apply to cadets, so results are labeled pending. The cadet signing step is not live yet.</p>
 </div>
 
 <script src="demo_tokens.js" onerror="void 0"></script>
@@ -207,7 +207,7 @@
 
   async function call(method, path, body) {
     const who = $("who").value;
-    const headers = { "Content-Type": "application/json", "X-Contract-Version": "v0" };
+    const headers = { "Content-Type": "application/json", "X-Contract-Version": "v1" };
     if (tokens && tokens[who]) headers["Authorization"] = "Bearer " + tokens[who];
     if (who === "spoof") headers["X-Role"] = "oic";
     log(">>> " + method + " " + path + "   (as " + who + ")");
@@ -237,7 +237,7 @@
       if (open.status >= 300) return reject(open, "open scorecard");
       const eid = open.data.event_id;
       for (const [id, code] of COMPONENTS) {
-        const r = await call("POST", "/v0/events/" + eid + "/components", { component: code, raw_value: String($(id).value), points: 100 });
+        const r = await call("POST", "/v0/events/" + eid + "/components", { component: code, raw_value: String($(id).value), age_group: "17-21", scoring_column: "M|C" });
         if (r.status >= 300) return reject(r, "enter " + code);
       }
       const sub = await call("POST", "/v0/events/" + eid + "/submit");
@@ -245,7 +245,7 @@
       const card = sub.data.scorecard;
       banner("ok", "Saved. Scorecard #" + eid + " is " + sub.data.status,
              ["Cadet: " + card.cadet_name + " (shown to the system only as a hash: " + card.cadet_edipi_hash.slice(0, 12) + "...)",
-              "5 results recorded, placeholder total " + card.total_points + " points.",
+              "5 results recorded. Total " + sub.data.grading.total_points + " points, result " + sub.data.grading.result + " (standards pending DPE confirmation).",
               "Each step wrote one record and one audit entry together."]);
     } catch (err) {
       banner("bad", "Could not reach the Gatekeeper", ["Is it running? In a terminal: python demo_full_run.py --screen", String(err)]);

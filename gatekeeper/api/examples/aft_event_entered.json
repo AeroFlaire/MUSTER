@@ -13,5 +13,12 @@
     "supersedes_event_id": null,
     "components": [],
     "total_points": null
+  },
+  "grading": {
+    "total_points": null,
+    "result": "INCOMPLETE",
+    "failed_events": [],
+    "min_points_per_event": 60,
+    "standards_status": "pending_dpe"
   }
 }

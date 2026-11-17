@@ -2,5 +2,8 @@
   "event_id": 11,
   "component": "MDL",
   "raw_value": "340",
-  "points": 100
+  "points": 100,
+  "age_group": "17-21",
+  "scoring_column": "F",
+  "standards_status": "pending_dpe"
 }

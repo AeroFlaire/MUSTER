@@ -25,7 +25,8 @@ except ImportError:  # running from the repo: the Vault package sits in <repo>/v
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "vault"))
     import muster_vault  # noqa: F401
 
-from muster_vault import db, fitness, identity, ioct
+import scoring
+from muster_vault import attendance, audit, db, fitness, identity, ioct
 from muster_vault.errors import (ChallengeError, InvalidTransition, NotFound,
                                  PermissionDenied, SignatureInvalid, TimingError, VaultError)
 
@@ -103,8 +104,16 @@ def map_error(exc):
 
 def _view(conn, event_id):
     ev = fitness.get_event(conn, event_id)
-    return {"event_id": event_id, "status": ev["status"],
-            "scorecard": fitness.scorecard(conn, event_id)}
+    card = fitness.scorecard(conn, event_id)
+    view = {"event_id": event_id, "status": ev["status"], "scorecard": card}
+    if card["test_type"] == "AFT":
+        # Contract v1: total and pass or fail, worked out from the points the Vault holds.
+        view["grading"] = scoring.summarize(
+            {c["component"]: c["points"] for c in card["components"]})
+    elif card.get("ioct"):
+        # IOCT: the Vault's computed time, graded against the DPE standard (pending).
+        view["grading"] = scoring.ioct_grade(card["ioct"]["elapsed_ms"])
+    return view
 
 
 def open_event(conn, actor_id, session_id, barcode, client_ref=None):
@@ -113,10 +122,14 @@ def open_event(conn, actor_id, session_id, barcode, client_ref=None):
     return _view(conn, event_id)
 
 
-def add_component(conn, actor_id, event_id, component, raw_value, points=None):
-    fitness.record_component(conn, actor_id, event_id, component, raw_value, points)
-    return {"event_id": event_id, "component": component, "raw_value": str(raw_value),
-            "points": points}
+def add_component(conn, actor_id, event_id, component, raw_value, age_group, scoring_column):
+    """Contract v1: the grader sends the raw result and the scoring context. The points come
+    from the official tables (scoring.py), never from the client. One Vault call."""
+    points, raw_text = scoring.points(component, raw_value, age_group, scoring_column)
+    fitness.record_component(conn, actor_id, event_id, component, raw_text, points)
+    return {"event_id": event_id, "component": component, "raw_value": raw_text,
+            "points": points, "age_group": age_group, "scoring_column": scoring_column,
+            "standards_status": scoring.STANDARDS_STATUS}
 
 
 def submit(conn, actor_id, event_id):
@@ -145,3 +158,65 @@ def compute_run(conn, actor_id, event_id):
     elapsed_ms = ioct.compute_run(conn, actor_id, event_id)
     return {"event_id": event_id, "elapsed_ms": elapsed_ms,
             "elapsed": fitness.format_elapsed(elapsed_ms)}
+
+
+# ---- corrections (PBI-08 L31) ------------------------------------------------
+# A correction never overwrites a saved score. `supersede` keeps the old event, marks it
+# SUPERSEDED, and opens a new event whose supersedes_event_id points at the original, with
+# its own audit entry. `reopen` sends a disputed or submitted event back to ENTERED (the audit
+# log keeps the old scorecard). Each is one Vault call, so one audit entry.
+
+def reopen(conn, actor_id, event_id, note):
+    fitness.reopen(conn, actor_id, event_id, note)
+    return {"event_id": event_id, "status": fitness.get_event(conn, event_id)["status"]}
+
+
+def supersede(conn, actor_id, event_id, reason):
+    new_id = fitness.supersede(conn, actor_id, event_id, reason)
+    return {"superseded_event_id": event_id, "new_event_id": new_id,
+            "status": fitness.get_event(conn, new_id)["status"]}
+
+
+# ---- attendance (PBI-09 L32, SR-2) -------------------------------------------
+# The Vault already refuses a mark for someone else's section or a cadet who is not
+# enrolled, but a refused write rolls back, so it leaves no trace. SR-2 wants every refused
+# attempt logged, so the Gatekeeper writes ONE rejected-attempt audit entry (its own small
+# transaction, after the failed write rolled back) and then re-raises the error as a 403.
+# The entry names the section, date and reason only: no barcode, no ID, no cadet hash.
+
+def _log_rejected(conn, actor_id, section_id, class_date, reason):
+    with db.transaction(conn):
+        audit.append(conn, function="ATTENDANCE", action="ATTENDANCE_REJECTED",
+                     actor_id=actor_id, entity_type="class_section", entity_id=section_id,
+                     data={"class_date": class_date, "reason": reason})
+
+
+def attendance_mark(conn, actor_id, section_id, class_date, status, barcode, client_ref=None):
+    edipi_hash = hash_barcode(barcode)
+    try:
+        att_id = attendance.mark(conn, actor_id, section_id, edipi_hash, class_date,
+                                 status, client_ref)
+    except (PermissionDenied, NotFound) as exc:
+        reason = str(exc)
+        if isinstance(exc, NotFound) and "section" not in reason:
+            reason = "cadet is not enrolled in this section"
+            exc = PermissionDenied(reason)  # a cadet we do not know is not on any roster
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        _log_rejected(conn, actor_id, section_id, class_date, reason)
+        raise exc
+    return {"attendance_id": att_id, "section_id": section_id, "class_date": class_date,
+            "status": status}
+
+
+def attendance_roster(conn, actor_id, section_id, class_date):
+    sec = conn.execute("SELECT instructor_id FROM class_section WHERE id = ?",
+                       (section_id,)).fetchone()
+    if sec is None:
+        raise NotFound(f"section {section_id} not found")
+    if sec["instructor_id"] != actor_id:
+        _log_rejected(conn, actor_id, section_id, class_date,
+                      "only this section's instructor can view the roster")
+        raise PermissionDenied("only this section's instructor can view the roster")
+    return {"section_id": section_id, "class_date": class_date,
+            "roster": attendance.roster(conn, section_id, class_date)}

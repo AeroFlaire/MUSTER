@@ -9,7 +9,7 @@ from pathlib import Path
 from app import create_app, load_example
 
 ROOT = Path(__file__).resolve().parent.parent
-CONTRACT = ROOT.parents[1] / "docs" / "interfaces" / "api-contract-v0.md"
+CONTRACT = ROOT.parents[1] / "docs" / "interfaces" / "api-contract-v1.md"
 H = {"X-Contract-Version": "v0"}
 ALL_ROLES = ["admin", "oic", "grader", "compiler_station", "gate_station", "instructor", "arms_nco"]
 
@@ -22,6 +22,7 @@ CASES = [
     ("POST", "/v0/sessions/7/events", "event_open_request", "aft_event_entered", 201, {"grader", "oic"}),
     ("POST", "/v0/events/11/components", "component_request", "component", 200, {"grader", "oic"}),
     ("POST", "/v0/events/11/submit", None, "aft_event_submitted", 200, {"grader", "oic"}),
+    ("GET", "/v0/scoring/standards", None, "scoring_standards", 200, {"grader", "oic", "admin"}),
     ("POST", "/v0/events/11/cadet-challenge", None, "cadet_challenge", 200, {"compiler_station", "oic"}),
     ("POST", "/v0/events/11/accept", "accept_request", "accept", 200, {"compiler_station", "oic"}),
     ("POST", "/v0/events/11/dispute", {"reason": "Cadet disagrees with plank time"}, "dispute", 200,
@@ -102,7 +103,7 @@ class StubApiTest(unittest.TestCase):
     # ---- version header, error shape, append only ------------------------
 
     def test_missing_or_wrong_contract_version_is_400(self):
-        for headers in ({"X-Role": "oic"}, {"X-Role": "oic", "X-Contract-Version": "v1"}):
+        for headers in ({"X-Role": "oic"}, {"X-Role": "oic", "X-Contract-Version": "v2"}):
             r = self.client.get("/v0/audit/verify", headers=headers)
             self.assertEqual(r.status_code, 400)
             self.assertEqual(r.get_json()["error"]["code"], "unsupported_contract_version")
@@ -213,7 +214,10 @@ class StubApiTest(unittest.TestCase):
             ("/v0/sessions/7/events", "barcode", mutate("event_open_request", barcode=KeyError)),
             ("/v0/events/11/components", "component", mutate("component_request", component="PUSHUPS")),
             ("/v0/events/11/components", "raw_value", mutate("component_request", raw_value=340)),
-            ("/v0/events/11/components", "points", mutate("component_request", points=101)),
+            ("/v0/events/11/components", "points", mutate("component_request", points=100)),
+            ("/v0/events/11/components", "age_group", mutate("component_request", age_group="17-22")),
+            ("/v0/events/11/components", "scoring_column", mutate("component_request", scoring_column="X")),
+            ("/v0/events/11/components", "age_group", mutate("component_request", age_group=KeyError)),
             ("/v0/events/11/accept", "challenge_id", mutate("accept_request", challenge_id="5")),
             ("/v0/events/11/accept", "signature_b64", mutate("accept_request", signature_b64=KeyError)),
             ("/v0/events/11/dispute", "reason", {"reason": "  "}),

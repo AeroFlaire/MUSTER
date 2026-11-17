@@ -1,4 +1,4 @@
-"""MUSTER Gatekeeper stub API (contract v0, revision 2).
+"""MUSTER Gatekeeper stub API (contract v1).
 
 Every v0 endpoint returns the canned example from the contract so the other
 zones can build against it right away. This is a STUB:
@@ -27,7 +27,11 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request
 
-CONTRACT_VERSION = "v0"
+import scoring
+
+CONTRACT_VERSION = "v1"
+# v0 callers still work during the move to v1 (the URL prefix stays /v0/ so nothing breaks).
+ACCEPTED_VERSIONS = ("v0", "v1")
 EXAMPLES_DIR = Path(__file__).parent / "examples"
 
 # Same names and groupings as vault/muster_vault (identity.ROLES, fitness.*_ROLES).
@@ -74,7 +78,7 @@ def validation_error(field, why):
 
 # ---- body validation --------------------------------------------------------
 # Each spec maps field -> (kind, required). Kinds: str, int, date, test_type,
-# component, gate, points.
+# component, gate, age_group, column, att_status, forbidden (a field the client must not send).
 
 def check_field(field, kind, value):
     if kind == "str":
@@ -95,10 +99,19 @@ def check_field(field, kind, value):
     elif kind == "gate":
         if value not in ("START", "END"):
             return validation_error(field, "must be 'START' or 'END'")
-    elif kind == "points":
-        if value is not None and (isinstance(value, bool) or not isinstance(value, int)
-                                  or not 0 <= value <= 100):
-            return validation_error(field, "must be null or an integer from 0 to 100")
+    elif kind == "age_group":
+        if value not in scoring.load_tables()["meta"]["age_groups"]:
+            return validation_error(
+                field, f"must be one of {scoring.load_tables()['meta']['age_groups']}")
+    elif kind == "column":
+        if value not in scoring.COLUMNS:
+            return validation_error(field, f"must be one of {list(scoring.COLUMNS)}")
+    elif kind == "att_status":
+        if value not in ("PRESENT", "LATE", "ABSENT", "EXCUSED"):
+            return validation_error(field, "must be PRESENT, LATE, ABSENT or EXCUSED")
+    elif kind == "forbidden":
+        return validation_error(field, "is worked out by the Gatekeeper from the scoring tables, "
+                                       "do not send it")
     return None
 
 
@@ -134,9 +147,12 @@ ROUTES = [
     ("POST", "/v0/sessions/<int:session_id>/events", GRADER, 201, "aft_event_entered",
      {"barcode": ("str", True), "client_ref": ("str", False)}, "AFT", None),
     ("POST", "/v0/events/<int:event_id>/components", GRADER, 200, "component",
-     {"component": ("component", True), "raw_value": ("str", True), "points": ("points", False)},
+     {"component": ("component", True), "raw_value": ("str", True),
+      "age_group": ("age_group", True), "scoring_column": ("column", True),
+      "points": ("forbidden", False)},
      None, "AFT"),
     ("POST", "/v0/events/<int:event_id>/submit", GRADER, 200, event_card, None, None, "any"),
+    ("GET", "/v0/scoring/standards", GRADER | {"admin"}, 200, "scoring_standards", None, None, None),
     ("POST", "/v0/events/<int:event_id>/cadet-challenge", STATION, 200, "cadet_challenge",
      None, None, "any"),
     ("POST", "/v0/events/<int:event_id>/accept", STATION, 200, "accept",
@@ -159,6 +175,11 @@ ROUTES = [
      "ioct_run", None, None, "IOCT"),
     ("GET", "/v0/sessions/<int:session_id>/ioct/tags/<tag_uid>/event", STATION, 200, "tag_event",
      None, "IOCT", None),
+    ("POST", "/v0/attendance/marks", {"instructor"}, 201, "attendance_mark",
+     {"section_id": ("int", True), "class_date": ("date", True), "barcode": ("str", True),
+      "status": ("att_status", False), "client_ref": ("str", False)}, None, None),
+    ("GET", "/v0/attendance/sections/<int:section_id>/roster", {"instructor"}, 200,
+     "attendance_roster", None, None, None),
     ("GET", "/v0/audit/verify", OIC, 200, "audit_verify", None, None, None),
     ("GET", "/v0/audit/head", OIC, 200, "audit_head", None, None, None),
     ("GET", "/v0/audit/history", OIC, 200, "audit_history", None, None, None),
@@ -233,9 +254,9 @@ def create_app():
         if request.method == "OPTIONS":
             return None  # a browser's CORS preflight carries none of our custom headers
         if request.path.startswith("/v0/"):
-            if request.headers.get("X-Contract-Version") != CONTRACT_VERSION:
+            if request.headers.get("X-Contract-Version") not in ACCEPTED_VERSIONS:
                 return error(400, "unsupported_contract_version",
-                             "Send the header 'X-Contract-Version: v0'.")
+                             "Send the header 'X-Contract-Version: v1' (v0 is still accepted).")
 
     @app.after_request
     def allow_browser_calls(resp):

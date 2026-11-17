@@ -1,0 +1,18 @@
+{
+  "section_id": 1,
+  "class_date": "2026-11-17",
+  "roster": [
+    {
+      "cadet_id": 1,
+      "last_name": "Alpha",
+      "first_name": "Cadet",
+      "status": "PRESENT"
+    },
+    {
+      "cadet_id": 2,
+      "last_name": "Bravo",
+      "first_name": "Cadet",
+      "status": null
+    }
+  ]
+}

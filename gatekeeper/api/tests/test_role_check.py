@@ -76,7 +76,7 @@ class RoleCheckTest(unittest.TestCase):
             "open_event": lambda h: self.open_event(h),
             "add_component": lambda h: self.client.post(
                 f"/v0/events/{eid}/components", headers={**H, **h},
-                json={"component": "MDL", "raw_value": "340", "points": 100}),
+                json={"component": "MDL", "raw_value": "340", "age_group": "17-21", "scoring_column": "F"}),
             "submit": lambda h: self.client.post(f"/v0/events/{eid}/submit", headers={**H, **h}),
         }
 

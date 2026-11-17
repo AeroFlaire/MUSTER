@@ -1,0 +1,54 @@
+{
+  "name": "Army Fitness Test Score Tables",
+  "approved": "2025-05-15",
+  "effective": "2025-06-01",
+  "standards_status": "pending_dpe",
+  "status_note": "Official published tables. Not yet confirmed by the DPE for cadet testing (RFI open), so every result carries standards_status 'pending_dpe'.",
+  "age_groups": [
+    "17-21",
+    "22-26",
+    "27-31",
+    "32-36",
+    "37-41",
+    "42-46",
+    "47-51",
+    "52-56",
+    "57-61",
+    "62+"
+  ],
+  "scoring_columns": [
+    "M|C",
+    "F"
+  ],
+  "pass_rule": {
+    "min_points_per_event": 60,
+    "status": "placeholder pending DPE"
+  },
+  "events": [
+    {
+      "component": "MDL",
+      "unit": "lbs",
+      "better": "higher"
+    },
+    {
+      "component": "HRP",
+      "unit": "reps",
+      "better": "higher"
+    },
+    {
+      "component": "SDC",
+      "unit": "m:ss",
+      "better": "lower"
+    },
+    {
+      "component": "PLK",
+      "unit": "m:ss",
+      "better": "higher"
+    },
+    {
+      "component": "2MR",
+      "unit": "m:ss",
+      "better": "lower"
+    }
+  ]
+}

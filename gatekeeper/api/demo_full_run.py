@@ -7,7 +7,8 @@ it, and walks through the full path over real HTTP:
   2. Every access level tries every write endpoint: who is allowed, who is refused
   3. An IOCT run: wristband paired, simulated gate reads, run time computed by the Vault
   4. Forced failure: the audit write breaks, and 0 records are saved
-  5. Integrity: the audit chain verifies, then one entry is edited and the verifier catches it
+  5. Attendance: an instructor marks their own section; other sections and strangers are refused
+  6. Integrity: the audit chain verifies, then one entry is edited and the verifier catches it
 
 Run from gatekeeper/api/ (PowerShell):
 
@@ -96,7 +97,7 @@ class Demo:
 
     # -- helpers --
     def call(self, method, path, who=None, body=None, extra=None):
-        headers = {"X-Contract-Version": "v0", "Content-Type": "application/json"}
+        headers = {"X-Contract-Version": "v1", "Content-Type": "application/json"}
         if who in self.tokens:
             headers["Authorization"] = f"Bearer {self.tokens[who]}"
         headers.update(extra or {})
@@ -160,13 +161,14 @@ def scene_aft(d, wait):
     for key, code in COMPONENTS:
         value = str(cadet["aft_results"][key])
         st, out = d.call("POST", f"/v0/events/{eid}/components", "grader",
-                         {"component": code, "raw_value": value, "points": 100})
+                         {"component": code, "raw_value": value, "age_group": "17-21", "scoring_column": "M|C"})
         say(f"  POST /v0/events/{eid}/components  {code} = {value:>5}  -> {st} OK", G)
     st, out = d.call("POST", f"/v0/events/{eid}/submit", "grader")
     show_call("POST", f"/v0/events/{eid}/submit", "grader", st, out)
     after = d.counts()
-    say(f"  Scorecard status: {out['status']}   total points: {out['scorecard']['total_points']}"
-        "  (points are placeholders until DPE answers)")
+    g = out["grading"]
+    say(f"  Scorecard status: {out['status']}   total points: {g['total_points']}   result: {g['result']}"
+        "  (scored from the official AFT tables)")
     say(f"  Records written: {after['fitness_event'] - before['fitness_event']} event, "
         f"{after['fitness_component'] - before['fitness_component']} results.   "
         f"Audit entries added: {after['audit_log'] - before['audit_log']} "
@@ -185,7 +187,7 @@ def scene_access(d, wait):
     probes = {
         "open AFT": ("POST", "/v0/sessions/999/events", {"barcode": bc}),
         "enter result": ("POST", "/v0/events/999/components",
-                         {"component": "MDL", "raw_value": "340", "points": 100}),
+                         {"component": "MDL", "raw_value": "340", "age_group": "17-21", "scoring_column": "M|C"}),
         "submit": ("POST", "/v0/events/999/submit", None),
         "gate read": ("POST", "/v0/sessions/999/gate-reads",
                       {"tag_uid": "TAG-017", "gate": "START", "read_at_ms": 1, "gate_device": "G1"}),
@@ -282,8 +284,46 @@ def scene_forced_failure(d, wait):
     wait()
 
 
+def scene_attendance(d, wait):
+    scene(5, "Attendance: an instructor marks their own section only (SR-2)")
+    conn = bridge.connect(d.db)
+    base = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0]
+    conn.close()
+    say("  Instructor A marks all ten cadets in their own section (G1):")
+    ok = 0
+    for i in range(10):
+        st, _ = d.call("POST", "/v0/attendance/marks", "instructor",
+                       {"section_id": 1, "class_date": "2026-11-17", "barcode": d.barcode(i)})
+        ok += st == 201
+    say(f"    {ok} of 10 marked, 1 record and 1 audit entry each", G if ok == 10 else R)
+    say()
+    say("  Instructor B tries to mark cadets in Instructor A's section (3 attempts):", Y)
+    before = d.counts()["audit_log"]
+    for i in range(3):
+        st, out = d.call("POST", "/v0/attendance/marks", "instructor_b",
+                         {"section_id": 1, "class_date": "2026-11-17", "barcode": d.barcode(i)})
+        show_call("POST", "/v0/attendance/marks", "instructor_b", st, out)
+    say(f"    audit entries added: {d.counts()['audit_log'] - before} (one rejected-attempt entry each)",
+        G)
+    say()
+    say("  Instructor B tries to mark cadets who are not on their roster (3 attempts):", Y)
+    for i in (3, 5, 7):
+        st, out = d.call("POST", "/v0/attendance/marks", "instructor_b",
+                         {"section_id": 2, "class_date": "2026-11-17", "barcode": d.barcode(i)})
+        show_call("POST", "/v0/attendance/marks", "instructor_b", st, out)
+    conn = bridge.connect(d.db)
+    marks = conn.execute("SELECT COUNT(*) FROM attendance").fetchone()[0] - base
+    rej = conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'ATTENDANCE_REJECTED'"
+                       ).fetchone()[0]
+    conn.close()
+    say()
+    say(f"  False attendance records accepted: {marks - 10}.  Rejected attempts logged: {rej}.",
+        G if (marks - 10 == 0 and rej == 6) else R)
+    wait()
+
+
 def scene_integrity(d, wait):
-    scene(5, "Integrity: the audit chain, then a tamper attempt")
+    scene(6, "Integrity: the audit chain, then a tamper attempt")
     r = d.verify()
     say(f"  Audit chain: PASS, {r.entries_checked} entries, none changed or missing", G)
     say()
@@ -313,7 +353,7 @@ def closing():
         "The real CAC barcode parser (only the test pack format is read)",
         "Staff sign-in with a CAC (demo tokens stand in)",
         "Real RFID gate hardware (reads are simulated)",
-        "Encryption at rest (Vault, in progress) and DPE scoring tables by age group",
+        "DPE confirmation of the scoring standards, the IOCT pass time, and age group source",
     ):
         say(f"  - {item}")
     say()
@@ -335,6 +375,7 @@ def run_terminal(pause):
         scene_access(d, wait)
         scene_ioct(d, wait)
         scene_forced_failure(d, wait)
+        scene_attendance(d, wait)
         scene_integrity(d, wait)
         closing()
     finally:

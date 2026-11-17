@@ -39,5 +39,12 @@
       }
     ],
     "total_points": 500
+  },
+  "grading": {
+    "total_points": 500,
+    "result": "PASS",
+    "failed_events": [],
+    "min_points_per_event": 60,
+    "standards_status": "pending_dpe"
   }
 }
