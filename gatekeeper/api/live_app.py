@@ -429,6 +429,10 @@ if __name__ == "__main__":
             print(f"  From a phone on the same network:  https://{_lan_address()}:5000/app/")
             print("  The phone will warn about the certificate (self-signed). Accept it once.")
             print("  Only the laptop itself can register people or use the demo gate.")
+        if https:
+            print()
+            print("  Admin token (type it into the Register page on your phone; it changes every start):")
+            print("  " + tokens.get("admin", ""))
         print("  Press Ctrl+C to stop.")
         flask_app.run(host=host, port=5000, ssl_context="adhoc" if https else None)
         sys.exit(0)
