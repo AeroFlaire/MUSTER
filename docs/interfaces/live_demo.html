@@ -64,7 +64,7 @@
   <button id="run">Run AFT scorecard: open, enter 5 results, submit</button>
   <div id="banner" class="banner" role="status" aria-live="polite"></div>
   <div id="log" class="log"></div>
-  <p class="note">Points are worked out by the Gatekeeper from the official AFT score tables (age group 17-21, column M|C). The DPE has not yet confirmed which standards apply to cadets, so results are labeled pending. The cadet signing step is not live yet.</p>
+  <p class="note">Points are worked out by the Gatekeeper from the official AFT score tables (age group 17-21, column M|C). The pass rule is 60 points on every event, and the column is chosen by sex (men M|C, women F). The cadet signing step is not live yet.</p>
 </div>
 
 <script src="demo_tokens.js" onerror="void 0"></script>
@@ -245,7 +245,7 @@
       const card = sub.data.scorecard;
       banner("ok", "Saved. Scorecard #" + eid + " is " + sub.data.status,
              ["Cadet: " + card.cadet_name + " (shown to the system only as a hash: " + card.cadet_edipi_hash.slice(0, 12) + "...)",
-              "5 results recorded. Total " + sub.data.grading.total_points + " points, result " + sub.data.grading.result + " (standards pending DPE confirmation).",
+              "5 results recorded. Total " + sub.data.grading.total_points + " points, result " + sub.data.grading.result + " (60 points needed on every event).",
               "Each step wrote one record and one audit entry together."]);
     } catch (err) {
       banner("bad", "Could not reach the Gatekeeper", ["Is it running? In a terminal: python demo_full_run.py --screen", String(err)]);

@@ -17,7 +17,7 @@ Everything in v0 revision 2.1 still holds (bearer tokens, role read from the Vau
 5. **New endpoint** GET /v0/scoring/standards (grader, oic, admin) so the form can build its age group and column choices and label the standards honestly. Section 4.7.
 6. **Value formats and limits** (a value outside is 400 `validation_failed` naming `raw_value`): MDL whole pounds 0 to 600; HRP whole repetitions 0 to 150; SDC `m:ss` from 0:30 to 10:00; PLK `m:ss` up to 10:00; 2MR `m:ss` from 5:00 to 60:00. Times are stored in one form, `m:ss`, so `03:40` is saved as `3:40`.
 7. **Version header:** send `X-Contract-Version: v1`. `v0` is still accepted so Edge and the gate keep working until Rhemmy and Eliakim acknowledge v1. The URL prefix stays `/v0/` for now, so no path changes.
-8. **Standards are labeled.** Every graded response carries `standards_status: "pending_dpe"`. The tables are the official published ones (approved 15 May 2025, effective 1 June 2025), but the DPE has not confirmed which standards apply to cadets or where each cadet's age group and column come from. The pass rule (at least 60 points on every event) is a placeholder. Screens must show that label until the DPE answers.
+8. **Standards are labeled.** Every graded response carries `standards_status: "confirmed"`. The tables are the official published ones (approved 15 May 2025, effective 1 June 2025). The pass rule (at least 60 points on every event, so 300 is the lowest passing total) and the column for each sex (men M|C, all women F) were confirmed by the team on 17-Nov-2026. The age group is chosen by the grader for each cadet.
 
 Security: every new or changed endpoint lists its roles in section 2. A cadet, a request with no token, and a role sent by the client (`X-Role`) are all refused on the live endpoints. Each graded write is still one record and one audit entry in one transaction.
 
@@ -101,7 +101,7 @@ Status path: ENTERED, then SUBMITTED, then SIGNED. A cadet who will not sign set
 
 Every event response has the same wrapper: the event id, its status, and the `scorecard`. The scorecard is exactly the object the Vault builds in `fitness.scorecard`, and it is the exact record the cadet signs (section 6). It does not contain the status.
 
-`total_points` is the sum of the component points, or null if there are no components or any component has no points. Points are entered by the grader. AFT scoring tables are not built yet (RFI to DPE), so every `points` value in these examples is an invented placeholder.
+`total_points` is the sum of the component points, or null if there are no components or any component has no points. Points are entered by the grader. Points are worked out by the Gatekeeper from the official AFT score tables (see 4.7), not typed.
 
 ### 4.1 Open a test session: POST /v0/sessions (oic, admin)
 
@@ -175,7 +175,7 @@ Response 201:
     "result": "INCOMPLETE",
     "failed_events": [],
     "min_points_per_event": 60,
-    "standards_status": "pending_dpe"
+    "standards_status": "confirmed"
   }
 }
 ```
@@ -203,7 +203,7 @@ Response 200:
   "points": 100,
   "age_group": "17-21",
   "scoring_column": "F",
-  "standards_status": "pending_dpe"
+  "standards_status": "confirmed"
 }
 ```
 
@@ -261,7 +261,7 @@ Response 200 (AFT event 11 shown):
     "result": "PASS",
     "failed_events": [],
     "min_points_per_event": 60,
-    "standards_status": "pending_dpe"
+    "standards_status": "confirmed"
   }
 }
 ```
@@ -315,7 +315,7 @@ Response 200 (AFT event 11 shown):
 
 **Age group and column.** `age_group` is the printed age band. `scoring_column` is `M|C` or `F`, the two columns of the official table. v1 has the grader choose them once per cadet on the form and send them with each component. The Vault does not store them yet (open item 1). Edge may map an age in years to a band with the same rule as the table (17 to 21, 22 to 26, and so on, 62 and over is `62+`).
 
-**Total and result.** `total_points` is the sum of the five event points, so 500 at most, and is null until all five are entered. `result` is `INCOMPLETE` until all five are entered, then `PASS` if every event is at least `min_points_per_event`, otherwise `FAIL` with the failing codes in `failed_events`. The minimum (60) is a placeholder until the DPE answers. `standards_status` is `pending_dpe` while the tables are not confirmed by the DPE.
+**Total and result.** `total_points` is the sum of the five event points, so 500 at most, and is null until all five are entered. `result` is `INCOMPLETE` until all five are entered, then `PASS` if every event is at least `min_points_per_event`, otherwise `FAIL` with the failing codes in `failed_events`. The minimum (60, so 300 is the lowest passing total) is the team's decision of 17-Nov, to be confirmed by the DPE. `GET /v0/scoring/standards` also returns `column_for_sex`: men use `M|C`, all women use `F`, which the form uses after it asks for sex first. `standards_status` is `confirmed` while the tables are not confirmed by the DPE.
 
 `grading` as returned with a submitted AFT event (it sits next to `scorecard`, as shown in 4.5):
 
@@ -325,7 +325,7 @@ Response 200 (AFT event 11 shown):
   "result": "PASS",
   "failed_events": [],
   "min_points_per_event": 60,
-  "standards_status": "pending_dpe"
+  "standards_status": "confirmed"
 }
 ```
 
@@ -336,8 +336,8 @@ Response 200 (AFT event 11 shown):
   "name": "Army Fitness Test Score Tables",
   "approved": "2025-05-15",
   "effective": "2025-06-01",
-  "standards_status": "pending_dpe",
-  "status_note": "Official published tables. Not yet confirmed by the DPE for cadet testing (RFI open), so every result carries standards_status 'pending_dpe'.",
+  "standards_status": "confirmed",
+  "status_note": "Official published tables (AFT_Scoring_Scales_250601). Pass rule: at least 60 points on every event, so 300 is the lowest passing total. Column: men use M|C, all women use F. Confirmed by the team on 17-Nov-2026.",
   "age_groups": [
     "17-21",
     "22-26",
@@ -356,7 +356,13 @@ Response 200 (AFT event 11 shown):
   ],
   "pass_rule": {
     "min_points_per_event": 60,
-    "status": "placeholder pending DPE"
+    "total_minimum": 300,
+    "status": "confirmed 17-Nov: 60 points on every event (300 total is the lowest possible pass)"
+  },
+  "column_for_sex": {
+    "male": "M|C",
+    "female": "F",
+    "status": "confirmed 17-Nov: men use M|C, all women use F"
   },
   "events": [
     {
@@ -739,9 +745,9 @@ Arms room, receipts, export to AMS, offline buffering and resync, user and cadet
 
 ## 12. Open items for the team
 
-1. Scoring (v1 position, needs the team's yes): the system computes points from the official tables (done in this version). Still open with the DPE (RFI, owner Alena): which standards apply to cadets, where each cadet's age group and column come from, the AFT pass rule, and the IOCT pass standard. Until answered the tables are labeled `pending_dpe` and the 60 point minimum is a placeholder.
+1. Scoring (v1 position, needs the team's yes): the system computes points from the official tables (done in this version). Settled 17-Nov: the AFT pass rule is 60 points on every event, men use the M|C column and all women use F, and the IOCT grade scale (pass at D, TAB at A- or better) is entered from the DPE slide. Still open: where each cadet's age group comes from (the grader chooses it for now) and a typed manual IOCT time.
 1a. For Arjo (schema v1, L29): should the Vault store `age_group` and `scoring_column` on the event, and `total_points` and `result`? Storing them once at open event would stop a grader sending a different context on each component and would put the context in the audit entry. v1 sends them on each component so the Gatekeeper needs no schema change today.
-1b. For Rhemmy (form, L29): the form selects age group and column once per cadet, sends them with every component, shows `grading.total_points` and `grading.result` after submit, shows the `pending_dpe` label, and has an error screen for 400 naming the field.
+1b. For Rhemmy (form, L29): the form selects age group and column once per cadet, sends them with every component, shows `grading.total_points` and `grading.result` after submit, shows the `confirmed` label, and has an error screen for 400 naming the field.
 2. Role mechanism: done for the six live writes in 2.1 (bearer token, role read from the Vault). Still open: how staff get a token (CAC sign in), and moving the canned endpoints to the same check as they go live.
 3. Rhemmy's L24 card says Edge parses the barcode and hashes the ID. The README and the Vault say Gatekeeper does, with a key Edge must never hold. The card text should change to match this contract.
 4. Time format: settled as `m:ss` (the official tables write `1:29`). The Vault schema comment that shows "01:45" should be updated to match.

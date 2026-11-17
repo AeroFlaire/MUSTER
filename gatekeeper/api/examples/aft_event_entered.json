@@ -19,6 +19,6 @@
     "result": "INCOMPLETE",
     "failed_events": [],
     "min_points_per_event": 60,
-    "standards_status": "pending_dpe"
+    "standards_status": "confirmed"
   }
 }

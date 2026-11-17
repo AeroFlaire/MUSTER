@@ -87,7 +87,7 @@ Try it:
 
 - No Vault, no real audit chain, no real signature check, no barcode parsing or hashing.
   The audit example was made with the Vault's own hashing code, so it is a valid chain.
-- Points in the examples are invented placeholders until the DPE scoring RFI closes.
+- Points in the examples are sample values.
 - No 401. Until real auth exists, no role means 403.
 
 ## Live mode: the API writes to the Vault (PBI-04 L24, PBI-05 L25)
@@ -116,7 +116,7 @@ Every other endpoint (signing, dispute, reads, audit) still returns its canned e
 
 `scoring.py` loads `data/aft_scoring_2025.json`, the official Army Fitness Test score tables (approved 15 May 2025, effective 1 June 2025), for all five events, ten age groups, and both columns (M|C and F). The grader sends the raw result, `age_group`, and `scoring_column`. The Gatekeeper looks up the points and the Vault saves them. A request that sends `points` is refused. Submit returns a `grading` block with the total and PASS, FAIL, or INCOMPLETE.
 
-Every graded result is labeled `pending_dpe`: the tables are official but the DPE has not confirmed which standards apply to cadets, and the pass rule (60 points on every event) is a placeholder. Tests: `tests/test_scoring.py` (25 hand-checked cases from the printed tables, 5 per event) and `tests/test_live_scoring.py`.
+Every graded result carries `standards_status: confirmed`: the tables are the official published ones, the pass rule is 60 points on every event (300 is the lowest passing total), and men use the M|C column and all women use F (confirmed by the team on 17-Nov). Tests: `tests/test_scoring.py` (25 hand-checked cases from the printed tables, 5 per event) and `tests/test_live_scoring.py`.
 
 ### Who may call (SR-1)
 

@@ -2,8 +2,8 @@
   "name": "Army Fitness Test Score Tables",
   "approved": "2025-05-15",
   "effective": "2025-06-01",
-  "standards_status": "pending_dpe",
-  "status_note": "Official published tables. Not yet confirmed by the DPE for cadet testing (RFI open), so every result carries standards_status 'pending_dpe'.",
+  "standards_status": "confirmed",
+  "status_note": "Official published tables (AFT_Scoring_Scales_250601). Pass rule: at least 60 points on every event, so 300 is the lowest passing total. Column: men use M|C, all women use F. Confirmed by the team on 17-Nov-2026.",
   "age_groups": [
     "17-21",
     "22-26",
@@ -22,7 +22,13 @@
   ],
   "pass_rule": {
     "min_points_per_event": 60,
-    "status": "placeholder pending DPE"
+    "total_minimum": 300,
+    "status": "confirmed 17-Nov: 60 points on every event (300 total is the lowest possible pass)"
+  },
+  "column_for_sex": {
+    "male": "M|C",
+    "female": "F",
+    "status": "confirmed 17-Nov: men use M|C, all women use F"
   },
   "events": [
     {

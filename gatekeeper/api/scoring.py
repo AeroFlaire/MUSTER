@@ -13,9 +13,9 @@ How a raw result becomes points (the same rule the printed tables use):
   a row printed as "---" has no number and is skipped
   a result that does not reach even the 0 point row scores 0
 
-STATUS: the tables are the official published ones, but the DPE has not yet confirmed which
-standards apply to cadets and where each cadet's age group and column come from (open RFI),
-and the pass rule below is a placeholder. Every graded result says so in `standards_status`.
+STANDARDS: the tables are the official published ones. The pass rule (at least 60 points on every
+event, so 300 is the lowest passing total) and the column for each sex (men M|C, all women F) were
+confirmed by the team on 17-Nov-2026. Every graded result carries `standards_status`.
 """
 
 import json
@@ -27,7 +27,7 @@ IOCT_FILE = Path(__file__).parent / "data" / "ioct_standard.json"
 
 COLUMNS = ("M|C", "F")
 EVENT_CODES = ("MDL", "HRP", "SDC", "PLK", "2MR")
-STANDARDS_STATUS = "pending_dpe"
+STANDARDS_STATUS = "confirmed"
 
 # Sanity limits on what a grader may type. A value outside is a typo, not a score.
 LIMITS = {
@@ -129,7 +129,7 @@ def summarize(points_by_event):
     """Total and pass or fail from the points saved for each event.
 
     `points_by_event` maps event code to points (or None). Pass needs all five events and at
-    least the per-event minimum on every one (PLACEHOLDER rule until the DPE answers)."""
+    least the per-event minimum on every one (the confirmed 17-Nov rule)."""
     meta = load_tables()["meta"]
     minimum = meta["pass_rule"]["min_points_per_event"]
     have = {e: p for e, p in points_by_event.items() if p is not None}
@@ -161,7 +161,11 @@ def standards_summary():
         "age_groups": meta["age_groups"],
         "scoring_columns": list(COLUMNS),
         "pass_rule": {"min_points_per_event": meta["pass_rule"]["min_points_per_event"],
+                      "total_minimum": meta["pass_rule"]["total_minimum"],
                       "status": meta["pass_rule"]["status"]},
+        "column_for_sex": {"male": meta["column_for_sex"]["male"],
+                           "female": meta["column_for_sex"]["female"],
+                           "status": meta["column_for_sex"]["status"]},
         "events": [{"component": e, "unit": t["events"][e]["unit"],
                     "better": t["events"][e]["better"]} for e in EVENT_CODES],
     }

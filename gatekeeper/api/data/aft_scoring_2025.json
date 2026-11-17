@@ -8,11 +8,12 @@
    "M|C": "male / combat column of the official table",
    "F": "female column"
   },
-  "dpe_confirmed": false,
-  "status_note": "Official published tables. Not yet confirmed by the DPE for cadet testing (RFI open), so every result carries standards_status 'pending_dpe'.",
+  "dpe_confirmed": true,
+  "status_note": "Official published tables (AFT_Scoring_Scales_250601). Pass rule: at least 60 points on every event, so 300 is the lowest passing total. Column: men use M|C, all women use F. Confirmed by the team on 17-Nov-2026.",
   "pass_rule": {
    "min_points_per_event": 60,
-   "status": "placeholder pending DPE"
+   "total_minimum": 300,
+   "status": "confirmed 17-Nov: 60 points on every event (300 total is the lowest possible pass)"
   },
   "age_groups": [
    "17-21",
@@ -25,7 +26,12 @@
    "52-56",
    "57-61",
    "62+"
-  ]
+  ],
+  "column_for_sex": {
+   "male": "M|C",
+   "female": "F",
+   "status": "confirmed 17-Nov: men use M|C, all women use F"
+  }
  },
  "events": {
   "MDL": {

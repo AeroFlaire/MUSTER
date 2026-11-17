@@ -83,7 +83,7 @@ class LiveScoringTest(unittest.TestCase):
         body = r.get_json()
         self.assertEqual((body["points"], body["raw_value"], body["age_group"],
                           body["scoring_column"], body["standards_status"]),
-                         (99, "1:30", "17-21", "M|C", "pending_dpe"))
+                         (99, "1:30", "17-21", "M|C", "confirmed"))
         row = self.q("SELECT raw_value, points FROM fitness_component WHERE event_id = ?", eid)[0]
         self.assertEqual((row["raw_value"], row["points"]), ("1:30", 99))
         self.assertEqual(self.count("fitness_component"), comps + 1)
@@ -140,7 +140,7 @@ class LiveScoringTest(unittest.TestCase):
         g = r.get_json()["grading"]
         # Alpha at 17-21 M|C: MDL 100, HRP 100, SDC 99, PLK 100, 2MR 100
         self.assertEqual((g["total_points"], g["result"], g["failed_events"]), (499, "PASS", []))
-        self.assertEqual(g["standards_status"], "pending_dpe")
+        self.assertEqual(g["standards_status"], "confirmed")
         self.assertEqual(r.get_json()["scorecard"]["total_points"], 499)
 
     def test_an_event_under_the_minimum_fails(self):

@@ -110,9 +110,9 @@ class TableData(unittest.TestCase):
         with self.assertRaises(scoring.ScoringError):
             scoring.age_group_for(16)
 
-    def test_tables_are_labeled_pending_dpe(self):
-        self.assertFalse(self.t["meta"]["dpe_confirmed"])
-        self.assertEqual(scoring.summarize({})["standards_status"], "pending_dpe")
+    def test_tables_are_labeled_confirmed(self):
+        self.assertTrue(self.t["meta"]["dpe_confirmed"])
+        self.assertEqual(scoring.summarize({})["standards_status"], "confirmed")
 
 
 class BadInput(unittest.TestCase):

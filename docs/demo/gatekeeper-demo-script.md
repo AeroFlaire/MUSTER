@@ -91,7 +91,7 @@ Leave it running. Open `docs\interfaces\live_demo.html` in your browser. Pick an
 - Signing, dispute, reopen, supersede and audit reads still return canned examples.
 - Staff tokens are a demo shortcut. Real sign-in with a CAC is not built.
 - The Gatekeeper reads only the test pack barcode format. The real CAC barcode parser is not built.
-- Points are placeholders until DPE answers which age group and column apply to each cadet. The AFT score tables themselves are in hand.
+- The grader picks each cadet's age group for now. The pass rule (60 on every event) and the columns (men M|C, women F) are settled.
 - Encryption at rest is the Vault's card (Arjo) and is not shown as done.
 - This is a web demo, not a phone app. Ask the instructor whether a phone browser page is acceptable.
 

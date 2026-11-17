@@ -6,7 +6,7 @@ Owner: Alena. One piece of evidence per API acceptance criterion. Every command 
 
 | PBI | Criterion (API side) | Evidence | Status |
 |---|---|---|---|
-| PBI-07 | Scoring standards for all five events load from a data file; 5 test cases per event grade correctly (25 of 25) | `tests/test_scoring.py` (11 tests, 25 hand-checked cases), data file `data/aft_scoring_2025.json`, labeled `pending_dpe` | Done, placeholders labeled |
+| PBI-07 | Scoring standards for all five events load from a data file; 5 test cases per event grade correctly (25 of 25) | `tests/test_scoring.py` (11 tests, 25 hand-checked cases), data file `data/aft_scoring_2025.json`, `standards_status: confirmed` | Done |
 | PBI-07 | One submit grades the record and saves exactly 1 record + 1 audit entry in one transaction; the screen shows total and pass or fail | `tests/test_live_scoring.py` (13 tests), `tests/test_live_vault.py` (16 tests, includes the forced audit failure that leaves 0 records), demo scene 1 and scene 4 | Done. Total is in the saved scorecard, PASS or FAIL is worked out from the saved points (see open item 1a in contract v1) |
 | PBI-07 | Audit verifier PASS after 10 graded AFT records; raw barcode in 0 rows | `test_live_scoring.py` (whole synthetic pack), `test_vault_holds_no_raw_barcode_or_id` | Done |
 | PBI-08 | API receives each run's tokens and timestamps in the contract JSON; each run = 1 IOCT record + 1 audit entry | `tests/test_live_ioct.py` (15 tests), demo scene 3 | Done on simulated reads |
