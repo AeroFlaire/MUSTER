@@ -77,11 +77,12 @@ It prints addresses like `https://192.168.x.x:8443/`.
 
 ```powershell
 pip install zxing-cpp reportlab pillow numpy
-python scripts\make_front_test_cards.py      # -> test_front_cards.pdf (13 cards, front + back)
+python scripts\make_front_test_cards.py      # -> test_front_cards.pdf (14 cards, front + back)
 ```
 
-These are fake DoD IDs 9000000001–9000000013 in the real layouts. The last three are edge
-cases: no middle initial, a last name with spaces, and a hyphenated last name. Print them,
+These are fake DoD IDs 9000000001–9000000014 in the real layouts. The last four are edge
+cases: no middle initial, a last name with spaces, a hyphenated last name, and a first name
+with a space. Print them,
 or show the PDF on a second screen.
 
 ## Tests
@@ -106,12 +107,13 @@ What was checked before this was committed:
 - **The front layout comes from real cards, not a published spec.** Version "M" is what
   current cards carry, and the older "N" format is rejected with a message. PBI-12 asks for
   5 cards. Each new owner should scan their own card and confirm the name and last 4.
-- **A first name containing a space** (for example "Mary Ann") is split at the first space,
-  so part of it lands in the last name. The DoD ID is never affected. The grader confirms the
-  name on screen.
+- **Name fields:** real cards pad the names with spaces (first name 20 characters, middle
+  initial 1, last name 26). Build 3 assumed single spaces, so the middle initial ended up glued
+  to the last name. Build 4 reads the padded layout and still accepts single spaces. A name
+  pasted into chat loses its padding, so chat copies aren't a reliable guide to the layout.
 - **The front barcode also holds date of birth and card dates.** The parser ignores them, and
   nothing downstream should ever ask for them.
 
 The earlier attempt (square-box page, a server that logged and forwarded the raw barcode,
 and a tunnel program) was removed. `edge/scanner.html` now just redirects here. The header
-shows **build 3**: if you don't see it, you're on an old copy of the page.
+shows **build 4**: if you don't see it, you're on an old copy of the page.

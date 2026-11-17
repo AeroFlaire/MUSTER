@@ -7,7 +7,7 @@ Writes two things:
                                             (Code 39) for each synthetic cadet
 
 The layouts copy what real CAC barcodes look like (see edge/scanner/cac_parse.js), but
-every value is fake: DoD IDs 9000000001-9000000013, invented names, zeroed dates. Never
+every value is fake: DoD IDs 9000000001-9000000014, invented names, zeroed dates. Never
 put a real card's barcode string in this repo.
 
     pip install zxing-cpp reportlab pillow
@@ -33,6 +33,7 @@ PEOPLE = [
     ("Kai", "", "Kilo", "no middle initial"),
     ("Lane", "M", "De La Lima", "last name with spaces"),
     ("Morgan", "N", "Mike-Smith", "hyphenated last name"),
+    ("Lee Ann", "O", "Oscar", "first name with a space"),
 ]
 
 
@@ -45,9 +46,11 @@ def b32(n: int, width: int) -> str:
     return out
 
 
-def front_string(edipi: str, first: str, mi: str, last: str) -> str:
+def front_string(edipi: str, first: str, mi: str, last: str, fixed: bool = True) -> str:
+    """fixed=True: space-padded fields (first 20, initial 1, last 26), which real cards use.
+    fixed=False: "First MLast" with single spaces, a second layout the parser also accepts."""
     header = "M" + b32(int(edipi), 7) + "00TEST00"            # 16 characters
-    name = f"{first} {mi or ' '}{last}"
+    name = (first.ljust(20) + (mi or " ") + last.ljust(26)) if fixed else f"{first} {mi}{last}"
     tail = ("0000" "US" " " "J" "A" "00" "CADET " "MC" "01"   # DOB zeroed, Academy student, Army
             "0000" "0000" "X" "TEST01")                       # card dates zeroed, fake card numbers
     assert len(tail) == 36
@@ -65,6 +68,8 @@ def cards() -> list[dict]:
         out.append({
             "edipi": edipi, "note": note,
             "front": front_string(edipi, first, mi, last),
+            "front_variable": front_string(edipi, first, mi, last, fixed=False)
+                              if mi and " " not in first else None,
             "back": back_string(edipi),
             "expect": {"firstName": first, "middleInitial": mi, "lastName": last,
                        "category": "J", "branch": "A"},

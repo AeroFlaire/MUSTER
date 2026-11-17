@@ -16,15 +16,15 @@
  *   [0]        "M"            format version
  *   [1..7]     7 chars        DoD ID (EDIPI), base 32 ("0-9" then "A-V")  <-- not plain digits
  *   [8..15]    8 chars        other card data (ignored)
- *   [16..L-38] variable       FIRST + " " + MIDDLE INITIAL (1 char) + LAST
+ *   [16..L-38] name block     FIRST(20, space-padded) + MIDDLE INITIAL(1) + LAST(26, padded),
+ *                             or, on some cards, FIRST + " " + MI + LAST (see splitName)
  *   [L-37]     " "            separator
  *   last 36    fixed width    DOB(4) "US"(2) " "(1) CATEGORY(1) BRANCH(1) ...rest ignored
  *
- *   Names are separated by spaces, so a first or last name that itself contains a
- *   space ("Mary Ann", "De La Cruz") cannot be split with certainty. We split at the
- *   FIRST space (first name has no spaces), which is right for "De La Cruz" and wrong
- *   for "Mary Ann". The grader sees the name and confirms it, so a wrong split is
- *   caught by a person, and the DoD ID (fixed position) is never affected.
+ *   With fixed-width fields, names containing spaces ("Mary Ann", "De La Cruz") split
+ *   correctly. In the variable layout we split at the FIRST space, which is right for
+ *   "De La Cruz" and wrong for "Mary Ann". The grader confirms the name on screen, and
+ *   the DoD ID (fixed position) is never affected.
  *
  * BACK LAYOUT (version "1"), from the public CACBarcode project (jkusner/CACBarcode):
  *   "1" + PDI(6) + PDI type(1) + EDIPI base 32 (7) + CATEGORY(1) + BRANCH(1) + card instance(1)
@@ -78,23 +78,46 @@
       throw new CacParseError("front barcode layout not recognized (name block)");
     const tail = raw.slice(raw.length - FRONT_TAIL);
     const nameBlock = raw.slice(FRONT_NAME_START, raw.length - FRONT_TAIL - 1);
-    const sp = nameBlock.indexOf(" ");
-    if (sp < 1 || sp + 2 > nameBlock.length)
-      throw new CacParseError("front barcode layout not recognized (no first name)");
-    const firstName = cleanName(nameBlock.slice(0, sp));
-    const mi = nameBlock[sp + 1];
-    const lastName = cleanName(nameBlock.slice(sp + 2));
-    if (!lastName) throw new CacParseError("front barcode layout not recognized (no last name)");
-    if (!/^[A-Za-z ]$/.test(mi)) throw new CacParseError("front barcode layout not recognized (middle initial)");
+    const { firstName, mi, lastName } = splitName(nameBlock);
     return {
       side: "front",
       edipi,
       firstName,
-      middleInitial: mi.trim(),
+      middleInitial: mi,
       lastName,
       category: tail[7],
       branch: tail[8],
     };
+  }
+
+  // Name fields. Two layouts are handled:
+  //  1. FIXED WIDTH, padded with spaces (as in the older CAC format): first name 20,
+  //     middle initial 1, last name 26. "Arjo" + 16 spaces + "R" + "Basu" + spaces.
+  //  2. VARIABLE: "Arjo RBasu" (one space, initial glued to the last name).
+  // Runs of spaces look like one space when a string is pasted into chat, which is why
+  // the first version of this parser only knew layout 2 and put the initial on the last name.
+  const FIRST_W = 20, LAST_W = 26;
+  function splitName(block) {
+    // Fixed width: the first-name field is padded, so its last position is a space.
+    if (block.length >= FIRST_W + 2 && block[FIRST_W - 1] === " ") {
+      const firstName = cleanName(block.slice(0, FIRST_W));
+      const mi = block[FIRST_W];
+      const lastName = cleanName(block.slice(FIRST_W + 1, FIRST_W + 1 + LAST_W));
+      const rest = block.slice(FIRST_W + 1 + LAST_W);
+      if (firstName && lastName && /^[A-Za-z ]$/.test(mi) && !rest.trim())
+        return { firstName, mi: mi.trim(), lastName };
+    }
+    // Variable layout. Collapse runs of spaces first, so padding of any width still works.
+    const s = block.replace(/\s+/g, " ").trim();
+    const sp = s.indexOf(" ");
+    if (sp < 1 || sp + 2 > s.length)
+      throw new CacParseError("front barcode layout not recognized (name)");
+    const firstName = s.slice(0, sp);
+    const mi = s[sp + 1];
+    const lastName = cleanName(s.slice(sp + 2));
+    if (!lastName || !/^[A-Za-z]$/.test(mi))
+      throw new CacParseError("front barcode layout not recognized (name)");
+    return { firstName, mi, lastName };
   }
 
   function parseBack(raw) {
