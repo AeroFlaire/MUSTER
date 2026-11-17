@@ -28,6 +28,23 @@ connected to the API yet. That's the next step, and it goes to the Gatekeeper ov
 
 Phones only allow the camera on `https://` pages.
 
+### Easiest: GitHub Pages (no laptop, any network)
+
+The page is only static files. The camera and the barcode reading run on the phone, and
+it never sends anything, so a static host is enough. AeroFlaire is public, so:
+
+1. On github.com/AeroFlaire/MUSTER, go to **Settings**, then **Pages**.
+2. Under **Build and deployment**, choose **Deploy from a branch**. Pick the branch with this
+   folder (`main` once merged, or `arjo/pbi-12-front-scanner`) and **/ (root)**, then **Save**.
+3. Wait about a minute. On the phone, open
+   **`https://aeroflaire.github.io/MUSTER/edge/scanner/`**
+
+You get a real certificate (no warning), and it works on Wi-Fi or cellular. GitHub only
+serves the page's files. It never sees a scan, because the page has no code that sends one.
+The security policy is also set inside `index.html`, so it applies on Pages too.
+
+### From your laptop (if the network allows it)
+
 ```powershell
 pip install cryptography            # used to make the self-signed certificate
 python edge\scanner\serve.py
@@ -45,8 +62,13 @@ It prints addresses like `https://192.168.x.x:8443/`.
 5. Hold the card flat, 4 to 6 inches away, with the wide barcode on the front inside the box.
    A tilt of up to about 15 degrees is fine.
 
-**If Windows Firewall asks about Python, allow it on Private networks.** If the phone still
-can't connect, the network is blocking device-to-device traffic. Use the hotspot.
+**If the phone can't connect:**
+- **Firewall:** an issued (government) laptop usually blocks all incoming connections by
+  policy, and you can't change that. Use GitHub Pages instead.
+- **Wrong address:** if the printed address changes between runs, a VPN or second adapter
+  was picked. Run `ipconfig`, find the **Wireless LAN adapter Wi-Fi** "IPv4 Address", and
+  use that with `:8443`.
+- **Personal laptop:** allow Python on Private networks when Windows Firewall asks.
 
 **Laptop webcam only:** `python edge\scanner\serve.py --http --host 127.0.0.1` and open
 `http://localhost:8080/`. Browsers treat localhost as secure, so the camera works.
