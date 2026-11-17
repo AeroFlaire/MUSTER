@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MUSTER CAC Scanner</title>
+  <link rel="stylesheet" href="scanner.css">
+</head>
+<body>
+  <header>
+    <h1>MUSTER <span>CAC scanner</span></h1>
+    <p id="privacy">Reads the barcode on this phone. Nothing is sent or saved.</p>
+  </header>
+
+  <main>
+    <section id="viewfinder" hidden>
+      <video id="video" playsinline muted autoplay></video>
+      <div id="guide" aria-hidden="true"><span>Line up the barcode on the front of the card</span></div>
+      <div id="controls">
+        <button id="torch" type="button" hidden>Light</button>
+        <button id="stop" type="button">Stop</button>
+      </div>
+    </section>
+
+    <section id="start-panel">
+      <p>Hold the card flat, 4 to 6 inches away, with the wide barcode on the front filling the box.</p>
+      <button id="start" type="button" disabled>Loading scanner…</button>
+    </section>
+
+    <p id="status" role="status" aria-live="polite"></p>
+
+    <section id="result" hidden aria-live="polite">
+      <div id="result-head">Scan OK</div>
+      <dl>
+        <dt>Name</dt><dd id="r-name"></dd>
+        <dt>DoD ID</dt><dd id="r-id"></dd>
+        <dt>Category</dt><dd id="r-cat"></dd>
+        <dt>Branch</dt><dd id="r-branch"></dd>
+        <dt>Read from</dt><dd id="r-side"></dd>
+        <dt>Time to read</dt><dd id="r-time"></dd>
+      </dl>
+      <p class="note">Only the last 4 digits of the DoD ID are shown. This clears itself in 60 seconds.</p>
+      <button id="again" type="button">Scan next card</button>
+    </section>
+  </main>
+
+  <script src="vendor/zxing-wasm-3.1.5/zxing-reader.iife.js"></script>
+  <script src="cac_parse.js"></script>
+  <script src="scanner.js"></script>
+</body>
+</html>
