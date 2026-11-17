@@ -1,7 +1,7 @@
 """PBI-08 L31: IOCT grading and corrections.
 
-* a computed run carries a `grading` block; the DPE standard is pending, so the result is
-  PENDING_STANDARD until a limit is set in data/ioct_standard.json
+* a computed run carries a `grading` block built from the DPE grade scale (every row on the slide,
+  men and women; pass = D, TAB = A- or better)
 * a correction is a NEW event that points at the original, with its own audit entry, and the
   original event's data is unchanged
 """
@@ -67,23 +67,47 @@ class IoctGradingAndCorrectionsTest(unittest.TestCase):
 
     # ---- grading --------------------------------------------------------------------
 
-    def test_pending_standard_until_the_dpe_answers(self):
-        eid = self.timed_run()
+    def test_submit_grades_the_run_for_both_columns(self):
+        eid = self.timed_run()  # 2:35.00
         r = self.post(f"/v0/events/{eid}/submit")
         g = r.get_json()["grading"]
-        self.assertEqual(g["result"], "PENDING_STANDARD")
         self.assertEqual(g["elapsed"], "2:35.00")
         self.assertEqual(g["elapsed_ms"], 155_000)
-        self.assertIsNone(g["max_elapsed_ms"])
-        self.assertEqual(g["standards_status"], "pending_dpe")
+        self.assertEqual(g["standards_status"], "dpe_grade_scale")
+        self.assertEqual(g["by_column"]["M|C"],
+                         {"points": 40, "grade": "A-", "result": "PASS", "tab": True})
+        self.assertEqual(g["by_column"]["F"],
+                         {"points": 50, "grade": "A+", "result": "PASS", "tab": True})
 
-    def test_pass_and_fail_once_a_limit_is_set(self):
-        for limit, want in ((160, "PASS"), (155, "PASS"), (154.99, "FAIL"), (120, "FAIL")):
-            f = Path(self.tmp.name) / "ioct.json"
-            f.write_text(json.dumps({"status": "set_for_test", "max_elapsed_seconds": limit}))
-            g = scoring.ioct_grade(155_000, path=f)
-            self.assertEqual(g["result"], want, limit)
-            self.assertEqual(g["elapsed_ms"], 155_000)  # the time is never changed by grading
+    def test_every_row_of_the_dpe_slide(self):
+        """Every band edge on the DPE slide, men then women: (seconds, points, grade)."""
+        men = [(0, 50), (146, 50), (147, 45), (153, 45), (154, 40), (158, 40), (159, 35), (162, 35),
+               (163, 30), (167, 30), (168, 25), (171, 25), (172, 20), (176, 20), (177, 15), (184, 15),
+               (185, 10), (195, 10), (196, 5), (210, 5), (211, 0), (900, 0)]
+        women = [(194, 50), (195, 45), (204, 45), (205, 40), (215, 40), (216, 35), (224, 35),
+                 (225, 30), (234, 30), (235, 25), (244, 25), (245, 20), (258, 20), (259, 15),
+                 (276, 15), (277, 10), (300, 10), (301, 5), (329, 5), (330, 0), (900, 0)]
+        for column, cases in (("M|C", men), ("F", women)):
+            for sec, points in cases:
+                g = scoring.ioct_grade(sec * 1000)["by_column"][column]
+                self.assertEqual(g["points"], points, (column, sec))
+
+    def test_pass_is_a_d_and_a_tab_is_an_a_minus(self):
+        def g(sec, col):
+            return scoring.ioct_grade(sec * 1000)["by_column"][col]
+        self.assertEqual((g(210, "M|C")["result"], g(210, "M|C")["tab"]), ("PASS", False))   # 3:30 is a D
+        self.assertEqual(g(211, "M|C")["result"], "FAIL")                                     # 3:31 is an F
+        self.assertEqual((g(329, "F")["result"], g(329, "F")["tab"]), ("PASS", False))        # 5:29 is a D
+        self.assertEqual(g(330, "F")["result"], "FAIL")                                       # 5:30 is an F
+        self.assertTrue(g(158, "M|C")["tab"])      # 2:38 is the last A- for men
+        self.assertFalse(g(159, "M|C")["tab"])     # 2:39 is a B+
+        self.assertTrue(g(215, "F")["tab"])        # 3:35 is the last A- for women
+        self.assertFalse(g(216, "F")["tab"])       # 3:36 is a B+
+
+    def test_the_time_is_cut_to_the_whole_second_and_never_changed(self):
+        g = scoring.ioct_grade(146_990)  # 2:26.99 is still "2:26 or less"
+        self.assertEqual(g["by_column"]["M|C"]["points"], 50)
+        self.assertEqual(g["elapsed_ms"], 146_990)
 
     # ---- corrections ----------------------------------------------------------------
 

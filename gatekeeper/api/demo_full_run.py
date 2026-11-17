@@ -251,6 +251,12 @@ def scene_ioct(d, wait):
     say(f"  Run time computed by the Vault: {out['elapsed']}   "
         f"(the shared test pack says {cadet['ioct_time']} for {cadet['fake_name']})", G)
     st, out = d.call("POST", f"/v0/events/{eid}/submit", "grader")
+    g = out["grading"]
+    say(f"  Graded with the DPE IOCT scale for {g['elapsed']}:", G)
+    for column, label in (("M|C", "men"), ("F", "women")):
+        c = g["by_column"][column]
+        say(f"    {label:6s} {c['points']} points, {c['grade']}, {c['result']}"
+            + ("  (TAB: never has to be retaken)" if c["tab"] else ""), G)
     say(f"  Submitted for the cadet to sign: status {out['status']}", G)
     say("  A gate can post reads but cannot pair a band or compute a time:", Y)
     st, out = d.call("POST", f"/v0/events/{eid}/ioct/compute", "gate_station")

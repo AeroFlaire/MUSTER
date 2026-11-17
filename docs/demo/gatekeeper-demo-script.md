@@ -120,7 +120,7 @@ API steps to say out loud (about 40 seconds):
 
 1. "Scene 1: a grader scans, enters five results, and submits. The Gatekeeper looks up the points from the official tables, nobody types a score, and the response shows the total and PASS or FAIL."
 2. "Scene 2: every access level against every write. 42 attempts, 0 records, and a faked role header is refused."
-3. "Scene 3: gate reads come in, the Vault computes the time, and the run is graded. The DPE has not given the IOCT standard, so it says PENDING_STANDARD instead of guessing."
+3. "Scene 3: gate reads come in, the Vault computes the time, and the run is graded with the DPE grade scale: points, letter grade, PASS or FAIL, and TAB for A- or better."
 4. "Scene 5: Instructor A marks their section. Instructor B tries A's section and strangers, gets 403 every time, and each refusal is written to the audit log."
 5. "Scene 6: the audit chain verifies, one entry is edited, and the verifier names it."
 

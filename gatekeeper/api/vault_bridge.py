@@ -111,7 +111,7 @@ def _view(conn, event_id):
         view["grading"] = scoring.summarize(
             {c["component"]: c["points"] for c in card["components"]})
     elif card.get("ioct"):
-        # IOCT: the Vault's computed time, graded against the DPE standard (pending).
+        # IOCT: the Vault's computed time, graded with the DPE grade scale.
         view["grading"] = scoring.ioct_grade(card["ioct"]["elapsed_ms"])
     return view
 

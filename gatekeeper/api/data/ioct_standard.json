@@ -1,6 +1,145 @@
 {
-  "name": "IOCT time standard",
-  "status": "pending_dpe",
-  "status_note": "The DPE has not answered the IOCT standard RFI. No pass time is set, so a timed run is reported as PENDING_STANDARD until the DPE gives the number. Put it in max_elapsed_seconds.",
-  "max_elapsed_seconds": null
+  "name": "IOCT grade scale (DPE slide)",
+  "status": "dpe_grade_scale",
+  "status_note": "Entered from the Department of Physical Education IOCT grade scale slide (17-Nov-2026). Pass is a D (5 points) or better. A- (40 points) or better is a TAB and never has to be retaken. Times on the slide are whole seconds, so a gate time is cut down to the whole second before it is looked up (assumption: confirm with the DPE).",
+  "pass_points": 5,
+  "tab_points": 40,
+  "columns": {
+    "M|C": "MEN",
+    "F": "WOMEN"
+  },
+  "rows": [
+    {
+      "points": 50,
+      "grade": "A+",
+      "M|C": {
+        "min_s": 0,
+        "max_s": 146
+      },
+      "F": {
+        "min_s": 0,
+        "max_s": 194
+      }
+    },
+    {
+      "points": 45,
+      "grade": "A",
+      "M|C": {
+        "min_s": 147,
+        "max_s": 153
+      },
+      "F": {
+        "min_s": 195,
+        "max_s": 204
+      }
+    },
+    {
+      "points": 40,
+      "grade": "A-",
+      "M|C": {
+        "min_s": 154,
+        "max_s": 158
+      },
+      "F": {
+        "min_s": 205,
+        "max_s": 215
+      }
+    },
+    {
+      "points": 35,
+      "grade": "B+",
+      "M|C": {
+        "min_s": 159,
+        "max_s": 162
+      },
+      "F": {
+        "min_s": 216,
+        "max_s": 224
+      }
+    },
+    {
+      "points": 30,
+      "grade": "B",
+      "M|C": {
+        "min_s": 163,
+        "max_s": 167
+      },
+      "F": {
+        "min_s": 225,
+        "max_s": 234
+      }
+    },
+    {
+      "points": 25,
+      "grade": "B-",
+      "M|C": {
+        "min_s": 168,
+        "max_s": 171
+      },
+      "F": {
+        "min_s": 235,
+        "max_s": 244
+      }
+    },
+    {
+      "points": 20,
+      "grade": "C+",
+      "M|C": {
+        "min_s": 172,
+        "max_s": 176
+      },
+      "F": {
+        "min_s": 245,
+        "max_s": 258
+      }
+    },
+    {
+      "points": 15,
+      "grade": "C",
+      "M|C": {
+        "min_s": 177,
+        "max_s": 184
+      },
+      "F": {
+        "min_s": 259,
+        "max_s": 276
+      }
+    },
+    {
+      "points": 10,
+      "grade": "C-",
+      "M|C": {
+        "min_s": 185,
+        "max_s": 195
+      },
+      "F": {
+        "min_s": 277,
+        "max_s": 300
+      }
+    },
+    {
+      "points": 5,
+      "grade": "D",
+      "M|C": {
+        "min_s": 196,
+        "max_s": 210
+      },
+      "F": {
+        "min_s": 301,
+        "max_s": 329
+      }
+    },
+    {
+      "points": 0,
+      "grade": "F",
+      "M|C": {
+        "min_s": 211,
+        "max_s": null
+      },
+      "F": {
+        "min_s": 330,
+        "max_s": null
+      }
+    }
+  ]
 }

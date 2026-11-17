@@ -18,5 +18,26 @@
       "elapsed_ms": 155000,
       "elapsed": "2:35.00"
     }
+  },
+  "grading": {
+    "elapsed_ms": 155000,
+    "elapsed": "2:35.00",
+    "pass_rule": "D (5 points) or better",
+    "tab_rule": "A- (40 points) or better",
+    "by_column": {
+      "M|C": {
+        "points": 40,
+        "grade": "A-",
+        "result": "PASS",
+        "tab": true
+      },
+      "F": {
+        "points": 50,
+        "grade": "A+",
+        "result": "PASS",
+        "tab": true
+      }
+    },
+    "standards_status": "dpe_grade_scale"
   }
 }

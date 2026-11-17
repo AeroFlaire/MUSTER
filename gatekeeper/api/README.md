@@ -170,7 +170,7 @@ format only), and staff do not yet get tokens by signing in with a CAC. Tests:
 
 ### IOCT scoring, corrections and attendance (L31, L32)
 
-* A computed IOCT run carries a `grading` block. The DPE has not given the IOCT standard, so `result` is `PENDING_STANDARD`. When they answer, type the pass time in seconds into `data/ioct_standard.json` (`max_elapsed_seconds`) and it grades PASS or FAIL. The time is never changed by grading.
+* A computed IOCT run carries a `grading` block built from the DPE IOCT grade scale (`data/ioct_standard.json`, from the DPE slide). It gives points, letter grade, PASS or FAIL and TAB for both columns (`by_column`: `M|C` = men, `F` = women), because the Vault does not store gender. The web app, which asks for gender first, shows its column. Pass is a D (5 points) or better. A- (40 points) or better is a TAB, which never has to be retaken. The slide prints whole seconds, so the gate time is cut down to the whole second before the lookup (confirm this with the DPE). The time itself is never changed by grading.
 * Corrections never overwrite: `supersede` keeps the old event and opens a new one that points at it. Both corrections are OIC only.
 * Attendance: the Vault enforces own-section and on-the-roster. The Gatekeeper adds the rejected-attempt audit entry (a refused Vault write rolls back, so on its own it would leave no trace). The entry holds the section, date and reason only.
 * Demo accounts: `instructor` owns section 1 (all ten cadets), `instructor_b` owns section 2 (only the first cadet).

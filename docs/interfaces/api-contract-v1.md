@@ -478,6 +478,27 @@ Response 201:
       "elapsed_ms": 155000,
       "elapsed": "2:35.00"
     }
+  },
+  "grading": {
+    "elapsed_ms": 155000,
+    "elapsed": "2:35.00",
+    "pass_rule": "D (5 points) or better",
+    "tab_rule": "A- (40 points) or better",
+    "by_column": {
+      "M|C": {
+        "points": 40,
+        "grade": "A-",
+        "result": "PASS",
+        "tab": true
+      },
+      "F": {
+        "points": 50,
+        "grade": "A+",
+        "result": "PASS",
+        "tab": true
+      }
+    },
+    "standards_status": "dpe_grade_scale"
   }
 }
 ```
@@ -494,7 +515,7 @@ Response 201:
 
 ## 5A. IOCT scoring and corrections (L31, live)
 
-A computed IOCT run now carries a `grading` block next to the scorecard: `elapsed_ms`, `elapsed` (m:ss.cc), `result`, `max_elapsed_ms` and `standards_status`. The DPE has not given the IOCT standard, so `result` is `PENDING_STANDARD` and `max_elapsed_ms` is null until the number is typed into `data/ioct_standard.json`. After that the same field reads `PASS` or `FAIL`. The time is always the Vault's computed time from the gate reads.
+A computed IOCT run now carries a `grading` block next to the scorecard, built from the DPE IOCT grade scale (data/ioct_standard.json, entered from the DPE slide, 17-Nov). It holds `elapsed_ms`, `elapsed` (m:ss.cc), `pass_rule`, `tab_rule`, `standards_status` and `by_column`, which gives `points`, `grade`, `result` (PASS or FAIL) and `tab` for `M|C` (men) and `F` (women). The Vault does not store gender, so the web app, which asks for it first, shows its column. Pass is a D (5 points) or better. A- (40 points) or better is a TAB and never has to be retaken. The slide prints whole seconds, so the gate time is cut down to the whole second before the lookup (to confirm with the DPE). The time is always the Vault's computed time from the gate reads.
 
 Corrections never overwrite a saved score. `POST /v0/events/{event_id}/supersede` keeps the old event, marks it SUPERSEDED, and opens a new event whose `supersedes_event_id` points at the original, with its own audit entry. `POST /v0/events/{event_id}/reopen` sends a disputed or submitted event back to ENTERED. Both are live and OIC only, one Vault call each.
 

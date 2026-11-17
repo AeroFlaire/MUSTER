@@ -174,17 +174,30 @@ def _clock(ms):
     return f"{minutes}:{rem // 1000:02d}.{rem % 1000 // 10:02d}"
 
 
+def _lookup(spec, column, whole_seconds):
+    for row in spec["rows"]:
+        band = row[column]
+        if whole_seconds >= band["min_s"] and (band["max_s"] is None or whole_seconds <= band["max_s"]):
+            return row
+    raise ScoringError("IOCT table has a gap")  # cannot happen with the DPE table
+
+
 def ioct_grade(elapsed_ms, path=IOCT_FILE):
-    """Grade one computed IOCT time. The DPE has not given the standard yet, so with no
-    `max_elapsed_seconds` in data/ioct_standard.json the result is PENDING_STANDARD. Once the
-    DPE answers, type the number in that file and every IOCT view grades PASS or FAIL.
-    The time itself is never changed here: it is the Vault's computed elapsed time."""
+    """Grade one computed IOCT time with the DPE grade scale (data/ioct_standard.json).
+
+    Returns the points, letter grade, PASS or FAIL and TAB for BOTH columns (M|C = men, F = women),
+    because the Vault does not store gender. The web app, which asked for it first, shows its
+    column: grading["by_column"][column]. Pass is a D (5 points) or better. A- (40 points) or better
+    is a TAB, which never has to be retaken. The slide prints whole seconds, so the gate time is cut
+    down to the whole second before the lookup. The time itself is never changed here."""
     spec = json.loads(Path(path).read_text(encoding="utf-8"))
-    limit = spec["max_elapsed_seconds"]
-    if limit is None:
-        result, limit_ms = "PENDING_STANDARD", None
-    else:
-        limit_ms = int(round(limit * 1000))
-        result = "PASS" if elapsed_ms <= limit_ms else "FAIL"
-    return {"elapsed_ms": elapsed_ms, "elapsed": _clock(elapsed_ms), "result": result,
-            "max_elapsed_ms": limit_ms, "standards_status": spec["status"]}
+    whole = elapsed_ms // 1000
+    by_column = {}
+    for column in spec["columns"]:
+        row = _lookup(spec, column, whole)
+        by_column[column] = {"points": row["points"], "grade": row["grade"],
+                             "result": "PASS" if row["points"] >= spec["pass_points"] else "FAIL",
+                             "tab": row["points"] >= spec["tab_points"]}
+    return {"elapsed_ms": elapsed_ms, "elapsed": _clock(elapsed_ms),
+            "pass_rule": "D (5 points) or better", "tab_rule": "A- (40 points) or better",
+            "by_column": by_column, "standards_status": spec["status"]}
