@@ -2,7 +2,8 @@
   {
     "edipi": "9000000001",
     "note": "",
-    "front": "M8C726G100TEST00Avery QAlpha 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G100TEST00Avery               QAlpha                      0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G100TEST00Avery QAlpha 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G1JAW",
     "expect": {
       "firstName": "Avery",
@@ -15,7 +16,8 @@
   {
     "edipi": "9000000002",
     "note": "",
-    "front": "M8C726G200TEST00Blake RBravo 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G200TEST00Blake               RBravo                      0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G200TEST00Blake RBravo 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G2JAW",
     "expect": {
       "firstName": "Blake",
@@ -28,7 +30,8 @@
   {
     "edipi": "9000000003",
     "note": "",
-    "front": "M8C726G300TEST00Casey SCharlie 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G300TEST00Casey               SCharlie                    0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G300TEST00Casey SCharlie 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G3JAW",
     "expect": {
       "firstName": "Casey",
@@ -41,7 +44,8 @@
   {
     "edipi": "9000000004",
     "note": "",
-    "front": "M8C726G400TEST00Devon TDelta 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G400TEST00Devon               TDelta                      0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G400TEST00Devon TDelta 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G4JAW",
     "expect": {
       "firstName": "Devon",
@@ -54,7 +58,8 @@
   {
     "edipi": "9000000005",
     "note": "",
-    "front": "M8C726G500TEST00Emerson UEcho 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G500TEST00Emerson             UEcho                       0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G500TEST00Emerson UEcho 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G5JAW",
     "expect": {
       "firstName": "Emerson",
@@ -67,7 +72,8 @@
   {
     "edipi": "9000000006",
     "note": "",
-    "front": "M8C726G600TEST00Finley VFoxtrot 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G600TEST00Finley              VFoxtrot                    0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G600TEST00Finley VFoxtrot 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G6JAW",
     "expect": {
       "firstName": "Finley",
@@ -80,7 +86,8 @@
   {
     "edipi": "9000000007",
     "note": "",
-    "front": "M8C726G700TEST00Gray WGolf 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G700TEST00Gray                WGolf                       0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G700TEST00Gray WGolf 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G7JAW",
     "expect": {
       "firstName": "Gray",
@@ -93,7 +100,8 @@
   {
     "edipi": "9000000008",
     "note": "",
-    "front": "M8C726G800TEST00Harper XHotel 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G800TEST00Harper              XHotel                      0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G800TEST00Harper XHotel 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G8JAW",
     "expect": {
       "firstName": "Harper",
@@ -106,7 +114,8 @@
   {
     "edipi": "9000000009",
     "note": "",
-    "front": "M8C726G900TEST00Indigo YIndia 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726G900TEST00Indigo              YIndia                      0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726G900TEST00Indigo YIndia 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726G9JAW",
     "expect": {
       "firstName": "Indigo",
@@ -119,7 +128,8 @@
   {
     "edipi": "9000000010",
     "note": "",
-    "front": "M8C726GA00TEST00Jordan ZJuliet 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726GA00TEST00Jordan              ZJuliet                     0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726GA00TEST00Jordan ZJuliet 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726GAJAW",
     "expect": {
       "firstName": "Jordan",
@@ -132,7 +142,8 @@
   {
     "edipi": "9000000011",
     "note": "no middle initial",
-    "front": "M8C726GB00TEST00Kai  Kilo 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726GB00TEST00Kai                  Kilo                       0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": null,
     "back": "1TEST01X8C726GBJAW",
     "expect": {
       "firstName": "Kai",
@@ -145,7 +156,8 @@
   {
     "edipi": "9000000012",
     "note": "last name with spaces",
-    "front": "M8C726GC00TEST00Lane MDe La Lima 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726GC00TEST00Lane                MDe La Lima                 0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726GC00TEST00Lane MDe La Lima 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726GCJAW",
     "expect": {
       "firstName": "Lane",
@@ -158,12 +170,27 @@
   {
     "edipi": "9000000013",
     "note": "hyphenated last name",
-    "front": "M8C726GD00TEST00Morgan NMike-Smith 0000US JA00CADET MC0100000000XTEST01",
+    "front": "M8C726GD00TEST00Morgan              NMike-Smith                 0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": "M8C726GD00TEST00Morgan NMike-Smith 0000US JA00CADET MC0100000000XTEST01",
     "back": "1TEST01X8C726GDJAW",
     "expect": {
       "firstName": "Morgan",
       "middleInitial": "N",
       "lastName": "Mike-Smith",
+      "category": "J",
+      "branch": "A"
+    }
+  },
+  {
+    "edipi": "9000000014",
+    "note": "first name with a space",
+    "front": "M8C726GE00TEST00Lee Ann             OOscar                      0000US JA00CADET MC0100000000XTEST01",
+    "front_variable": null,
+    "back": "1TEST01X8C726GEJAW",
+    "expect": {
+      "firstName": "Lee Ann",
+      "middleInitial": "O",
+      "lastName": "Oscar",
       "category": "J",
       "branch": "A"
     }

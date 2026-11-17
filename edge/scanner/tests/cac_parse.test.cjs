@@ -31,7 +31,22 @@ test("front and back of the same card give the same DoD ID", () => {
   }
 });
 
-test("edge cases: no middle initial, spaces in the last name, hyphenated name", () => {
+test("single-space layout ('First MLast') gives the same result", () => {
+  for (const c of cards.filter((x) => x.front_variable)) {
+    const a = parseCac(c.front), b = parseCac(c.front_variable);
+    assert.deepEqual(b, a);
+  }
+});
+
+test("padded fields: the middle initial is never glued onto the last name", () => {
+  for (const c of cards) {
+    const r = parseCac(c.front);
+    assert.equal(r.lastName, c.expect.lastName);
+    assert.equal(r.middleInitial, c.expect.middleInitial);
+  }
+});
+
+test("edge cases: no middle initial, spaces in names, hyphenated name", () => {
   const byNote = Object.fromEntries(cards.filter((c) => c.note).map((c) => [c.note, c]));
   const noMi = parseCac(byNote["no middle initial"].front);
   assert.deepEqual([noMi.firstName, noMi.middleInitial, noMi.lastName], ["Kai", "", "Kilo"]);
@@ -39,6 +54,8 @@ test("edge cases: no middle initial, spaces in the last name, hyphenated name", 
   assert.deepEqual([spaced.firstName, spaced.middleInitial, spaced.lastName], ["Lane", "M", "De La Lima"]);
   const hyph = parseCac(byNote["hyphenated last name"].front);
   assert.equal(hyph.lastName, "Mike-Smith");
+  const twoWordFirst = parseCac(byNote["first name with a space"].front);
+  assert.deepEqual([twoWordFirst.firstName, twoWordFirst.middleInitial, twoWordFirst.lastName], ["Lee Ann", "O", "Oscar"]);
 });
 
 test("the parser never returns date of birth, card dates or card numbers", () => {
@@ -58,7 +75,7 @@ test("non-CAC and damaged barcodes are rejected with a reason that never quotes 
   const bad = [
     "", "012345678905", "https://example.com/menu", "PDF417_TEST_DATA_9000000001_END",
     normal[0].front.slice(0, 40),                        // cut off
-    normal[0].front.replace(" 0000US", "X0000US"),       // layout broken
+    normal[0].front.slice(0, -37) + "X" + normal[0].front.slice(-36),   // layout broken
     "N" + normal[0].front.slice(1),                      // older format
     normal[0].back + "X",                                // back, wrong length
   ];
