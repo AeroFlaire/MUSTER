@@ -73,23 +73,55 @@
 
     <div class="card" id="g-record">
       <h2 id="recTitle">Record</h2>
+      <div id="rec-batch" hidden>
+      <div id="b-setup">
+        <h3>Who is being graded?</h3>
+        <div class="grid"><label>How many cadets?<input id="b-count" type="number" min="1" max="40" value="4" inputmode="numeric"></label></div>
+        <button class="btn" id="b-start">Start scanning</button>
+        <div id="b-scanzone" hidden>
+          <p class="sub" id="b-prompt"></p>
+          <div id="scan-batch"></div>
+          <div id="b-verify" class="verify" hidden></div>
+          <div id="b-addbox" class="verify" hidden>
+            <p class="hint">Pick this cadet's sex and age group. They stay fixed for the whole test.</p>
+            <div class="choice"><label><input type="radio" name="bsex" value="male"> Male</label><label><input type="radio" name="bsex" value="female"> Female</label></div>
+            <label>Age group<select id="b-age"></select></label>
+            <button class="btn" id="b-add">Add this cadet</button>
+          </div>
+          <div id="b-slots" class="slots"></div>
+          <div id="b-setupOut" class="banner" role="status" aria-live="polite"></div>
+          <button class="btn" id="b-begin" disabled>Start grading</button>
+        </div>
+      </div>
+      <div id="b-grade" hidden>
+        <nav class="tabs" id="b-evtabs"></nav>
+        <div class="choice mode"><label><input type="radio" name="bmode" value="event" checked> By event (everyone)</label><label><input type="radio" name="bmode" value="cadet"> By cadet</label></div>
+        <div id="b-chips" class="chips" hidden></div>
+        <div id="b-table"></div>
+        <div id="b-out" class="banner" role="status" aria-live="polite"></div>
+        <button class="btn" id="b-submit">Submit all completed cadets</button>
+        <div id="b-results"></div>
+        <button class="btn ghost" id="b-new" hidden>Grade another group</button>
+      </div>
+    </div>
+    <div id="rec-single">
       <fieldset id="st1" class="step">
         <legend>Step 1. Sex</legend>
         <p class="hint">This picks the scoring column.</p>
         <div class="choice"><label><input type="radio" name="sex" value="male"> Male</label>
         <label><input type="radio" name="sex" value="female"> Female</label></div>
       </fieldset>
-      <fieldset id="st2" class="step" disabled>
+      <fieldset id="st2" class="step" hidden>
         <legend>Step 2. Age group</legend>
         <select id="age"></select>
       </fieldset>
       <fieldset id="st3" class="step" disabled>
-        <legend>Step 3. Scan the cadet's CAC</legend>
+        <legend>Step 2. Scan the cadet's CAC</legend>
         <div id="scan-cadet"></div>
         <div id="verify" class="verify" hidden></div>
       </fieldset>
       <fieldset id="st4" class="step" disabled>
-        <legend>Step 4. Results</legend>
+        <legend>Step 3. Results</legend>
         <div id="aftBox" class="grid">
           <label>Deadlift (lbs)<input id="MDL" inputmode="numeric" autocomplete="off"></label>
           <label>Hand-release push-ups (reps)<input id="HRP" inputmode="numeric" autocomplete="off"></label>
@@ -104,6 +136,7 @@
         </div>
         <button class="btn" id="score">Score it</button>
       </fieldset>
+      </div>
       <div id="gradeOut" class="banner" role="status" aria-live="polite"></div>
       <div id="gradeTable"></div>
       <button class="btn ghost" id="nextCadet" hidden>Next cadet</button>

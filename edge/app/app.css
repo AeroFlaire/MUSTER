@@ -82,3 +82,19 @@ th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(-
 .hood pre { background:#08111f; color:#8ff0a4; padding:12px; border-radius:8px; white-space:pre-wrap; max-height:220px; overflow:auto; font-size:12px; }
 @media (max-width:560px) { .hero h1 { font-size:26px; } header { padding:12px; } }
 .whoami[hidden] { display:none; }
+.slots { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.slot { padding:8px 12px; border-radius:999px; background:var(--soft); border:1px solid var(--line); font-size:14px; }
+.slot.on { background:var(--ok-bg); border-color:var(--ok); color:var(--ok); font-weight:700; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.chips button { padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:var(--soft); font:inherit; cursor:pointer; }
+.chips button.on { background:#1c3d6e; color:#fff; border-color:#1c3d6e; }
+.mode { margin:6px 0 10px; }
+#v-grader .tabs.evt button { background:var(--soft); color:var(--ink); border-color:var(--line); }
+#v-grader .tabs.evt button.on { background:#1c3d6e; color:#fff; border-color:#1c3d6e; }
+.gt { width:100%; }
+.gt input { margin:0; max-width:180px; }
+.gt input.err { border-color:var(--bad); background:var(--bad-bg); }
+.gt td.pts { font-weight:800; min-width:70px; }
+.gt tr.done td.nm { color:var(--ok); }
+.tabs[hidden], .chips[hidden] { display:none; }
+#b-submit { margin-top:14px; }

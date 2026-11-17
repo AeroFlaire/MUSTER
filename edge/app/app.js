@@ -215,8 +215,9 @@
 
   function enter() {
     if (S.position === "cadet") { $("cadetTitle").textContent = `Your ${S.test} scores`; show("cadet"); loadOwn(); return; }
-    resetRecord(); gTab("record"); $("recTitle").textContent = `Record ${S.test}`;
-    $("aftBox").hidden = S.test !== "AFT"; $("ioctBox").hidden = S.test !== "IOCT";
+    resetRecord(); resetBatch(); gTab("record"); $("recTitle").textContent = S.test === "AFT" ? "Record AFT (one or many cadets)" : "Record IOCT";
+    $("rec-batch").hidden = S.test !== "AFT"; $("rec-single").hidden = S.test !== "IOCT";
+    $("aftBox").hidden = true; $("ioctBox").hidden = S.test !== "IOCT";
     show("grader"); loadStandards();
   }
 
@@ -226,6 +227,8 @@
     try { S.standards = await api("GET", "/v0/scoring/standards"); } catch (_) { S.standards = { age_groups: [], column_for_sex: { male: "M|C", female: "F" } }; }
     const sel = $("age"); sel.textContent = ""; sel.append(h("option", { value: "", text: "Choose…" }));
     for (const a of S.standards.age_groups) sel.append(h("option", { value: a, text: a }));
+    const bs = $("b-age"); bs.textContent = ""; bs.append(h("option", { value: "", text: "Choose…" }));
+    for (const a of S.standards.age_groups) bs.append(h("option", { value: a, text: a }));
   }
   function gTab(t) {
     document.querySelectorAll("[data-gtab]").forEach((b) => b.classList.toggle("on", b.dataset.gtab === t));
@@ -237,17 +240,15 @@
   function resetRecord() {
     S.sex = null; S.age = null; S.cadet = null; S.eventId = null; S.ref = null;
     document.querySelectorAll("input[name=sex]").forEach((r) => (r.checked = false));
-    $("st1").disabled = false; $("st2").disabled = true; $("st3").disabled = true; $("st4").disabled = true;
-    $("age").value = ""; $("verify").hidden = true; $("verify").textContent = "";
+    $("st1").disabled = false; $("st3").disabled = true; $("st4").disabled = true; $("verify").hidden = true; $("verify").textContent = "";
     for (const id of ["MDL", "HRP", "SDC", "PLK", "2MR", "runtime"]) $(id).value = "";
     banner("gradeOut"); $("gradeTable").textContent = ""; $("nextCadet").hidden = true; $("score").disabled = false;
     if (cadetScanner) cadetScanner.stop();
   }
-  document.querySelectorAll("input[name=sex]").forEach((r) => r.addEventListener("change", () => { S.sex = r.value; $("st2").disabled = false; }));
-  $("age").addEventListener("change", () => {
-    S.age = $("age").value || null; $("st3").disabled = !S.age;
-    if (S.age && !cadetScanner) cadetScanner = makeScanner($("scan-cadet"), "Scan the cadet's CAC", onCadetScan);
-  });
+  document.querySelectorAll("input[name=sex]").forEach((r) => r.addEventListener("change", () => {
+    S.sex = r.value; $("st3").disabled = false;         // IOCT is graded on sex only, no age group
+    if (!cadetScanner) cadetScanner = makeScanner($("scan-cadet"), "Scan the cadet's CAC", onCadetScan);
+  }));
 
   async function onCadetScan(p) {
     const cardName = p.lastName ? `${p.lastName}, ${p.firstName}${p.middleInitial ? " " + p.middleInitial + "." : ""}` : "";
@@ -266,44 +267,17 @@
       else if (cardName && norm(cardName.replace(/ \w\.$/, "")) !== norm(r.name)) verdict = "The card name and the database name do not match. Do not record. Check the cadet's ID.";
       else { good = true; verdict = cardName ? "Verified: card and database agree." : "Registered cadet. The back of the card has no name, so only the database name is shown."; }
       v.classList.add(good ? "good" : "badv"); v.append(h("div", { class: "verdict", text: verdict }));
-      if (good) { S.cadet = { edipi, name: r.name }; $("st1").disabled = true; $("st2").disabled = true; $("st4").disabled = false; }
+      if (good) { S.cadet = { edipi, name: r.name }; $("st1").disabled = true; $("st4").disabled = false; }
       else { S.cadet = null; $("st4").disabled = true; }
     } catch (e) { v.className = "verify badv"; v.textContent = e.message; }
-  }
-
-  function gradeTable(sc, gr) {
-    const t = h("table"), body = h("tbody");
-    if (sc.components) {
-      t.append(h("thead", {}, h("tr", {}, h("th", { text: "Event" }), h("th", { text: "Result" }), h("th", { text: "Points" }))));
-      const names = { MDL: "Deadlift", HRP: "Hand-release push-ups", SDC: "Sprint-drag-carry", PLK: "Plank", "2MR": "2-mile run" };
-      for (const c of sc.components) body.append(h("tr", {}, h("td", { text: names[c.component] || c.component }), h("td", { text: c.raw_value }), h("td", { text: c.points })));
-      body.append(h("tr", {}, h("td", { text: "Total" }), h("td"), h("td", { text: sc.total_points })));
-    }
-    t.append(body); return t;
   }
 
   $("score").addEventListener("click", async () => {
     if (!S.cadet) return;
     const btn = $("score"); btn.disabled = true; banner("gradeOut", "info", "Working…", []);
-    try { S.test === "AFT" ? await scoreAft() : await scoreIoct(); }
+    try { await scoreIoct(); }
     catch (e) { banner("gradeOut", "bad", "Not saved", [e.message]); btn.disabled = false; }
   });
-
-  async function scoreAft() {
-    const col = S.standards.column_for_sex[S.sex];
-    if (!S.eventId) { S.ref = S.ref || uuid(); const ev = await api("POST", `/v0/sessions/${AFT_SESSION}/events`, { edipi: S.cadet.edipi, client_ref: S.ref }); S.eventId = ev.event_id; }
-    for (const c of ["MDL", "HRP", "SDC", "PLK", "2MR"]) {
-      const v = $(c).value.trim();
-      if (!v) throw { message: "Enter a value for " + c + "." };
-      await api("POST", `/v0/events/${S.eventId}/components`, { component: c, raw_value: v, age_group: S.age, scoring_column: col });
-    }
-    const r = await api("POST", `/v0/events/${S.eventId}/submit`);
-    const g = r.grading, pass = g.result === "PASS";
-    banner("gradeOut", pass ? "ok" : "bad", `${S.cadet.name}: ${g.result} (${g.total_points} points)`,
-      pass ? ["Every event is 60 points or more."] : ["Below 60 on: " + g.failed_events.join(", ")]);
-    $("gradeTable").textContent = ""; $("gradeTable").append(gradeTable(r.scorecard, g));
-    finishCadet();
-  }
 
   async function scoreIoct() {
     const tag = $("tag").value, rt = $("runtime").value.trim().match(/^(\d{1,2}):([0-5]\d)$/);
@@ -325,6 +299,156 @@
   }
   function finishCadet() { $("st4").disabled = true; $("nextCadet").hidden = false; S.cadet = null; }
   $("nextCadet").addEventListener("click", () => { const tagIdx = $("tag").selectedIndex; resetRecord(); $("tag").selectedIndex = tagIdx; });
+
+
+  // ---------------- AFT: grade many cadets at once, event by event ----------------
+  const EVENTS = [["MDL", "Deadlift", "pounds"], ["HRP", "Hand-release push-ups", "reps"], ["SDC", "Sprint-drag-carry", "m:ss"], ["PLK", "Plank", "m:ss"], ["2MR", "2-mile run", "m:ss"]];
+  const B = { n: 1, cadets: [], pending: null, event: "MDL", mode: "event", sel: 0, cells: {}, tabs: {} };
+  let batchScanner = null;
+
+  function resetBatch() {
+    B.n = 1; B.cadets = []; B.pending = null; B.event = "MDL"; B.mode = "event"; B.sel = 0; B.cells = {}; B.tabs = {};
+    $("b-setup").hidden = false; $("b-grade").hidden = true; $("b-scanzone").hidden = true; $("b-verify").hidden = true; $("b-addbox").hidden = true;
+    $("b-begin").disabled = true; $("b-start").hidden = false; $("b-count").disabled = false;
+    document.querySelectorAll("input[name=bmode]").forEach((r) => (r.checked = r.value === "event"));
+    for (const id of ["b-setupOut", "b-out"]) banner(id);
+    $("b-results").textContent = ""; $("b-table").textContent = ""; $("b-new").hidden = true; $("b-submit").hidden = false; $("b-submit").disabled = false;
+    if (batchScanner) batchScanner.stop();
+    drawSlots();
+  }
+  function drawSlots() {
+    const host = $("b-slots"); host.textContent = "";
+    for (let i = 0; i < B.n; i++) {
+      const c = B.cadets[i];
+      host.append(h("span", { class: "slot" + (c ? " on" : ""), text: c ? `${i + 1}. ${c.name}` : `${i + 1}. waiting` }));
+    }
+    const full = B.cadets.length >= B.n;
+    $("b-prompt").textContent = full ? `All ${B.n} cadets are scanned.` : `Scan cadet ${B.cadets.length + 1} of ${B.n}.`;
+    $("scan-batch").hidden = full || !!B.pending;
+    $("b-begin").disabled = B.cadets.length === 0;
+  }
+  $("b-start").addEventListener("click", () => {
+    const n = parseInt($("b-count").value, 10);
+    if (!(n >= 1 && n <= 40)) { banner("b-setupOut", "bad", "Enter a number from 1 to 40", []); return; }
+    B.n = n; $("b-count").disabled = true; $("b-start").hidden = true; $("b-scanzone").hidden = false;
+    if (!batchScanner) batchScanner = makeScanner($("scan-batch"), "Scan a cadet's CAC", onBatchScan);
+    drawSlots();
+  });
+
+  async function onBatchScan(p) {
+    const cardName = p.lastName ? `${p.lastName}, ${p.firstName}${p.middleInitial ? " " + p.middleInitial + "." : ""}` : "";
+    const last4 = CacParse.maskEdipi(p.edipi).slice(-4), edipi = p.edipi;
+    const v = $("b-verify"); v.hidden = false; v.className = "verify"; v.textContent = "Checking the database…"; $("b-addbox").hidden = true;
+    try {
+      const r = await api("POST", "/v0/identity/lookup", { edipi });
+      v.textContent = "";
+      v.append(h("dl", {}, h("dt", { text: "Name on the card" }), h("dd", { text: cardName || "(back of card has no name)" }),
+        h("dt", { text: "Name in database" }), h("dd", { text: r.found ? r.name : "not found" }), h("dt", { text: "Card ID" }), h("dd", { text: "ending " + last4 })));
+      let verdict, good = false;
+      if (!r.found) verdict = "This card is not registered. Register the cadet first.";
+      else if (r.kind !== "cadet") verdict = `This card belongs to a ${roleLabel(r.role)}, not a cadet.`;
+      else if (cardName && norm(cardName.replace(/ \w\.$/, "")) !== norm(r.name)) verdict = "Card name and database name do not match. Do not record.";
+      else { good = true; verdict = cardName ? "Verified: card and database agree." : "Registered cadet (the back of the card has no name)."; }
+      v.classList.add(good ? "good" : "badv"); v.append(h("div", { class: "verdict", text: verdict }));
+      if (good) {
+        B.pending = { edipi, name: r.name };
+        document.querySelectorAll("input[name=bsex]").forEach((x) => (x.checked = false)); $("b-age").value = "";
+        $("b-addbox").hidden = false; $("scan-batch").hidden = true;
+      }
+    } catch (e) { v.className = "verify badv"; v.textContent = e.message; }
+  }
+  $("b-add").addEventListener("click", async () => {
+    const sexEl = document.querySelector("input[name=bsex]:checked"), age = $("b-age").value;
+    if (!B.pending) return;
+    if (!sexEl || !age) { banner("b-setupOut", "bad", "Pick sex and age group first", []); return; }
+    banner("b-setupOut");
+    const btn = $("b-add"); btn.disabled = true;
+    try {
+      const ref = uuid();
+      const ev = await api("POST", `/v0/sessions/${AFT_SESSION}/events`, { edipi: B.pending.edipi, client_ref: ref });
+      B.cadets.push({ name: B.pending.name, eventId: ev.event_id, sex: sexEl.value, age, col: S.standards.column_for_sex[sexEl.value], values: {}, points: {}, submitted: false, result: null });
+      B.pending = null;                                        // the ID is not kept once the scorecard is open
+      $("b-addbox").hidden = true; $("b-verify").hidden = true;
+    } catch (e) { banner("b-setupOut", "bad", "Could not add this cadet", [e.message]); }
+    btn.disabled = false; drawSlots();
+  });
+  $("b-begin").addEventListener("click", () => {
+    if (!B.cadets.length) return;
+    batchScanner.stop(); $("b-setup").hidden = true; $("b-grade").hidden = false; B.event = "MDL"; B.sel = 0; renderGrade();
+  });
+
+  function doneCount(ev) { return B.cadets.filter((c) => c.points[ev] != null).length; }
+  function updateTabs() {
+    for (const [code, label] of EVENTS) if (B.tabs[code]) B.tabs[code].textContent = `${label} ${doneCount(code)}/${B.cadets.length}`;
+    document.querySelectorAll("#b-chips button").forEach((b, i) => { const c = B.cadets[i]; b.textContent = `${c.name} ${EVENTS.filter(([k]) => c.points[k] != null).length}/5`; });
+  }
+  function renderGrade() {
+    const tabs = $("b-evtabs"); tabs.textContent = ""; tabs.className = "tabs evt"; B.tabs = {};
+    for (const [code, label] of EVENTS) {
+      const b = h("button", { type: "button", class: B.event === code && B.mode === "event" ? "on" : "" });
+      b.addEventListener("click", () => { B.event = code; B.mode = "event"; document.querySelector("input[name=bmode][value=event]").checked = true; renderGrade(); });
+      B.tabs[code] = b; tabs.append(b);
+    }
+    tabs.hidden = B.mode !== "event";
+    const chips = $("b-chips"); chips.textContent = ""; chips.hidden = B.mode !== "cadet";
+    B.cadets.forEach((c, i) => { const b = h("button", { type: "button", class: i === B.sel ? "on" : "" }); b.addEventListener("click", () => { B.sel = i; renderGrade(); }); chips.append(b); });
+    B.cells = {};
+    const rows = B.mode === "event" ? B.cadets.map((c) => [c, B.event]) : EVENTS.map(([code]) => [B.cadets[B.sel], code]);
+    const unit = (code) => EVENTS.find((e) => e[0] === code)[2];
+    const t = h("table", { class: "gt" }, h("thead", {}, h("tr", {}, h("th", { text: B.mode === "event" ? "Cadet" : "Event" }), h("th", { text: "Result" }), h("th", { text: "Points" }))));
+    const body = h("tbody");
+    const inputs = [];
+    for (const [c, code] of rows) {
+      const input = h("input", { autocomplete: "off", inputmode: code === "MDL" || code === "HRP" ? "numeric" : "text", placeholder: unit(code) });
+      input.value = c.values[code] || ""; input.disabled = c.submitted;
+      const pts = h("td", { class: "pts", text: c.points[code] != null ? c.points[code] : "" });
+      B.cells[B.cadets.indexOf(c) + ":" + code] = pts;
+      input.addEventListener("change", () => saveComp(c, code, input, pts));
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const k = inputs.indexOf(input); if (inputs[k + 1]) inputs[k + 1].focus(); else input.blur(); } });
+      inputs.push(input);
+      const label = B.mode === "event" ? c.name : EVENTS.find((e) => e[0] === code)[1];
+      body.append(h("tr", {}, h("td", { class: "nm", text: label }), h("td", {}, input), pts));
+    }
+    t.append(body); $("b-table").textContent = ""; $("b-table").append(t); updateTabs();
+    if (inputs[0] && !inputs[0].disabled) inputs[0].focus();
+  }
+  document.querySelectorAll("input[name=bmode]").forEach((r) => r.addEventListener("change", () => { B.mode = r.value; renderGrade(); }));
+
+  async function saveComp(c, code, input, ptsCell) {
+    const v = input.value.trim();
+    if (!v || (v === c.values[code] && c.points[code] != null)) return;
+    ptsCell.textContent = "…";
+    try {
+      const r = await api("POST", `/v0/events/${c.eventId}/components`, { component: code, raw_value: v, age_group: c.age, scoring_column: c.col });
+      c.values[code] = v; c.points[code] = r.points; ptsCell.textContent = r.points; input.classList.remove("err"); banner("b-out");
+    } catch (e) { ptsCell.textContent = ""; input.classList.add("err"); banner("b-out", "bad", "Not saved for " + c.name, [e.message]); }
+    updateTabs();
+  }
+
+  $("b-submit").addEventListener("click", async () => {
+    const btn = $("b-submit"); btn.disabled = true; banner("b-out", "info", "Submitting…", []);
+    const rows = [];
+    for (const c of B.cadets) {
+      if (c.submitted) continue;
+      const missing = EVENTS.filter(([k]) => c.points[k] == null).map(([, l]) => l);
+      if (missing.length) { rows.push([c.name, "", "NOT SUBMITTED", "Missing: " + missing.join(", ")]); continue; }
+      try {
+        const r = await api("POST", `/v0/events/${c.eventId}/submit`);
+        c.submitted = true; c.result = r.grading;
+      } catch (e) { rows.push([c.name, "", "ERROR", e.message]); }
+    }
+    const t = h("table", {}, h("thead", {}, h("tr", {}, ...["Cadet", "Total", "Result", "Notes"].map((x) => h("th", { text: x })))));
+    const body = h("tbody");
+    for (const c of B.cadets) if (c.submitted) body.append(h("tr", {}, h("td", { text: c.name }), h("td", { text: c.result.total_points }), h("td", { class: c.result.result === "PASS" ? "pass" : "fail", text: c.result.result }), h("td", { text: c.result.failed_events.length ? "Below 60 on: " + c.result.failed_events.join(", ") : "" })));
+    for (const r of rows) body.append(h("tr", {}, ...r.map((x, i) => h("td", { class: i === 2 ? "fail" : "", text: x }))));
+    t.append(body); $("b-results").textContent = ""; $("b-results").append(t);
+    const sub = B.cadets.filter((c) => c.submitted).length;
+    banner("b-out", sub === B.cadets.length ? "ok" : "info", `${sub} of ${B.cadets.length} submitted`, sub === B.cadets.length ? ["Scores are locked and saved."] : ["Finish the missing events and submit again."]);
+    renderGrade();
+    btn.disabled = false;
+    if (sub === B.cadets.length) { btn.hidden = true; $("b-new").hidden = false; }
+  });
+  $("b-new").addEventListener("click", () => { resetBatch(); });
 
   // ---------------- results tables ----------------
   function resultsTable(rows, col, showName) {
