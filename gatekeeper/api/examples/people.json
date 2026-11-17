@@ -1,0 +1,17 @@
+{
+  "count": 2,
+  "people": [
+    {
+      "name": "Nebesky, Alena",
+      "kind": "staff",
+      "role": "oic",
+      "active": true
+    },
+    {
+      "name": "Alpha, Avery",
+      "kind": "cadet",
+      "role": "cadet",
+      "active": true
+    }
+  ]
+}

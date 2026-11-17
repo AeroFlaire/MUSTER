@@ -26,6 +26,7 @@ staff get tokens (CAC sign-in at the Gatekeeper) is a later card.
 import hashlib
 import json
 import secrets
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +42,7 @@ class Principal:
     label: str
     actor_id: int | None  # Vault app_user id; None for a cadet
     cadet_hash: str | None = None  # a cadet's keyed ID hash (never the raw ID); None for staff
+    expires_at: float | None = None  # time.time() after which the token is refused; sessions only
 
 
 class CredentialStore:
@@ -49,21 +51,28 @@ class CredentialStore:
     def __init__(self):
         self._by_hash = {}
 
-    def add(self, token, label, actor_id, cadet_hash=None):
-        self._by_hash[hash_token(token)] = Principal(label, actor_id, cadet_hash)
+    def add(self, token, label, actor_id, cadet_hash=None, ttl=None):
+        expires = None if ttl is None else time.time() + ttl
+        self._by_hash[hash_token(token)] = Principal(label, actor_id, cadet_hash, expires)
 
     def lookup(self, token):
-        return self._by_hash.get(hash_token(token))
+        key = hash_token(token)
+        p = self._by_hash.get(key)
+        if p is not None and p.expires_at is not None and time.time() > p.expires_at:
+            del self._by_hash[key]  # an expired session is gone
+            return None
+        return p
 
-    def issue(self, label, actor_id, cadet_hash=None):
+    def issue(self, label, actor_id, cadet_hash=None, ttl=None):
+        """`ttl` (seconds) makes a session token that expires. Sessions are never saved to disk."""
         token = secrets.token_urlsafe(32)
-        self.add(token, label, actor_id, cadet_hash)
+        self.add(token, label, actor_id, cadet_hash, ttl)
         return token
 
     def save(self, path):
         rows = [{"token_sha256": h, "label": p.label, "actor_id": p.actor_id,
                  "cadet_hash": p.cadet_hash}
-                for h, p in self._by_hash.items()]
+                for h, p in self._by_hash.items() if p.expires_at is None]
         Path(path).write_text(json.dumps({"credentials": rows}, indent=2), encoding="utf-8")
 
     @classmethod

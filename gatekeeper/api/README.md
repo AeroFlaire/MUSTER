@@ -169,6 +169,10 @@ format only), and staff do not yet get tokens by signing in with a CAC. Tests:
 `python -m unittest discover -s tests -v`. They need the Vault package (`<repo>/vault`) and its
 `cryptography` dependency.
 
+### The demo app (docs/interfaces/muster_app.html)
+
+A single web page for presentations. Start the API with `python demo_full_run.py --screen` (from `gatekeeper/api`, keys set as above), then open `docs/interfaces/muster_app.html` in a browser. Sign in from the drop-down (grader, OIC, Cadet Alpha, Cadet Bravo, instructors, stations). Sex is asked first and picks the scoring column. It grades AFT and IOCT, shows results by role (the server decides what each role sees) and does attendance the way the class will use it: scan a card and the cadet is marked present, and the roster below is only for fixing a mistake. A simulated gate posts the IOCT start and end reads. Restart the server to reset the data. It is a demo and a reference for the real Edge screens, not a replacement for them.
+
 ### IOCT scoring, corrections and attendance (L31, L32)
 
 * A computed IOCT run carries a `grading` block built from the DPE IOCT grade scale (`data/ioct_standard.json`, from the DPE slide). It gives points, letter grade, PASS or FAIL and TAB for both columns (`by_column`: `M|C` = men, `F` = women), because the Vault does not store gender. The web app, which asks for gender first, shows its column. Pass is a D (5 points) or better. A- (40 points) or better is a TAB, which never has to be retaken. The slide prints whole seconds, so the gate time is cut down to the whole second before the lookup (confirm this with the DPE). The time itself is never changed by grading.
@@ -190,3 +194,21 @@ Writes the results to `docs/evidence/gatekeeper-tests-1-2-results.md` (Test 1: f
     python demo_full_run.py --screen    # browser part: then open docs/interfaces/live_demo.html
 
 `demo_full_run.py` builds its own throwaway Vault database and walks the whole path over real HTTP: a grader's AFT scorecard, every access level against every write, a simulated IOCT run, a forced audit failure, and a tamper check. The script, narration and recording notes are in `docs/demo/gatekeeper-demo-script.md`.
+
+
+## The app (CAC version, `edge/app`)
+
+`start_app.ps1` runs the Gatekeeper and serves the pages from the same address, so the camera works (localhost counts as secure) and no CORS is needed.
+
+```powershell
+cd gatekeeper\api
+.\start_app.ps1                    # real cards: open http://127.0.0.1:5000/app/
+.\start_app.ps1 -Synthetic -Reset  # Arjo's fake cards (tests: EDIPI 9000000001 to 13)
+.\start_app.ps1 -Https             # phone on the same network (accept the certificate warning once)
+```
+
+Flow: pick AFT or IOCT, pick Grader/OIC or Cadet, scan your own CAC. A grader then picks sex and age group, scans the cadet's CAC (the page shows the card name next to the database name), enters the results and the system scores them. A cadet gets a read-only view of their own scores. Attendance is a placeholder. The Register screen (laptop only) adds people by scanning their card.
+
+Real names and keyed ID hashes are stored in `muster_app.db`, and the keys in `.app_keys`. Both are ignored by git. Never commit them.
+
+Limit: a scan identifies a person but does not prove the card is genuine (a photo of a barcode would also scan). Real proof needs the chip and a reader. See contract section 5D.

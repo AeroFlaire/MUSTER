@@ -423,7 +423,8 @@ def run_screen():
     say()
     say(" MUSTER Gatekeeper is running on http://127.0.0.1:5000 (synthetic data, throwaway database)", B)
     say(f" Demo tokens written to {TOKENS_JS}")
-    say(" Now open docs/interfaces/live_demo.html in your browser, pick an access level, and run it.")
+    say(" Now open docs/interfaces/muster_app.html in your browser (the demo app: sign in, grade, see results by role).")
+    say(" The older single-screen console is docs/interfaces/live_demo.html.")
     say(" Press Ctrl+C here when you are done.", Y)
     try:
         while True:

@@ -201,6 +201,56 @@ class LiveAttendanceTest(unittest.TestCase):
             self.assertNotIn(c["edipi"], text)
             self.assertNotIn(c["barcode_string"], text)
 
+    # ---- scan marks, roster edit corrects (instructor edits only if needed) ----------------
+
+    def post(self, body, role="instructor"):
+        return self.client.post("/v0/attendance/marks", json=body,
+                                headers={**H, "Authorization": f"Bearer {self.tokens[role]}"})
+
+    def test_a_scan_marks_present_by_default_and_names_the_cadet(self):
+        r = self.post({"section_id": 1, "class_date": DAY, "barcode": self.cadets[0]["barcode_string"]})
+        self.assertEqual((r.status_code, r.get_json()["status"]), (201, "PRESENT"))
+        self.assertEqual(r.get_json()["cadet_name"], "Alpha, Cadet")
+        self.assertEqual(self.roster(1).get_json()["roster"][0]["status"], "PRESENT")
+
+    def test_rescanning_the_same_cadet_writes_nothing_new(self):
+        self.mark(0)
+        rows, logs = self.count("attendance"), self.count("audit_log")
+        self.assertEqual(self.mark(0).status_code, 201)
+        self.assertEqual((self.count("attendance"), self.count("audit_log")), (rows, logs))
+
+    def test_the_instructor_can_correct_a_row_from_the_roster_and_the_old_status_is_kept(self):
+        self.mark(0)
+        cid = self.roster(1).get_json()["roster"][0]["cadet_id"]
+        r = self.post({"section_id": 1, "class_date": DAY, "cadet_id": cid, "status": "EXCUSED"})
+        self.assertEqual((r.status_code, r.get_json()["status"]), (201, "EXCUSED"))
+        self.assertEqual(self.roster(1).get_json()["roster"][0]["status"], "EXCUSED")
+        self.assertEqual(self.count("attendance"), 1)  # same row, not a second one
+        entry = self.q("SELECT data FROM audit_log WHERE action = 'ATTENDANCE_CORRECTED'")
+        self.assertEqual(len(entry), 1)
+        self.assertEqual(json.loads(entry[0]["data"])["old_status"], "PRESENT")
+        conn = bridge.connect(self.db)
+        self.assertTrue(audit.verify(conn).ok)
+        conn.close()
+
+    def test_a_correction_for_another_instructors_section_or_an_unknown_cadet_is_refused_and_logged(self):
+        self.mark(0)
+        rejected = self.count("audit_log", "action = 'ATTENDANCE_REJECTED'")
+        for who, body in (("instructor_b", {"section_id": 1, "cadet_id": 1}),
+                          ("instructor_b", {"section_id": 2, "cadet_id": 5}),
+                          ("instructor", {"section_id": 1, "cadet_id": 9999})):
+            r = self.post({"class_date": DAY, "status": "ABSENT", **body}, who)
+            self.assertEqual((r.status_code, r.get_json()["error"]["code"]), (403, "forbidden_role"), body)
+        self.assertEqual(self.count("audit_log", "action = 'ATTENDANCE_REJECTED'"), rejected + 3)
+        self.assertEqual(self.q("SELECT status FROM attendance")[0]["status"], "PRESENT")
+
+    def test_send_the_barcode_or_the_cadet_id_but_not_both_and_not_neither(self):
+        base = {"section_id": 1, "class_date": DAY}
+        for extra in ({}, {"barcode": self.cadets[0]["barcode_string"], "cadet_id": 1}):
+            r = self.post({**base, **extra})
+            self.assertEqual((r.status_code, r.get_json()["error"]["code"]), (400, "validation_failed"))
+        self.assertEqual(self.count("attendance"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

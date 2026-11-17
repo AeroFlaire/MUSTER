@@ -118,6 +118,8 @@ Leave it running. Open `docs\interfaces\live_demo.html` in your browser. Pick an
 | A cadet cannot write, a grader cannot supersede | Scene 6: both 403, 0 audit entries added | Role test |
 | Tamper is caught | Scene 7 (was scene 5) | PBI-10 |
 
+Screen version (for the room): run `python demo_full_run.py --screen`, open `docs/interfaces/muster_app.html`. Demo 2: sign in as Grader, pick Male, score Alpha's AFT (499, PASS), then pick Female and run the IOCT (2:35, 50 points, A+, TAB). Demo 3: Results tab as Grader (all scores), OIC (all scores), Cadet Alpha (only Alpha's), Cadet Bravo (only Bravo's); then try Grade as Cadet Alpha and show the 403. Attendance: sign in as Instructor A, open the Attendance tab, scan (or press Simulate scan) and the cadet is marked present with no other step; then change one row to EXCUSED to show a fix, and sign in as Instructor B to show a 403. Fallback if the page or browser fails: `python demo_full_run.py`.
+
 API steps to say out loud (about 40 seconds):
 
 1. "Scene 1: a grader scans, enters five results, and submits. The Gatekeeper looks up the points from the official tables, nobody types a score, and the response shows the total and PASS or FAIL."

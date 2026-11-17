@@ -46,6 +46,23 @@ def parse_barcode(raw):
     return m.group(1)
 
 
+_EDIPI = re.compile(r"^\d{10}$")
+
+
+def hash_identity(barcode=None, edipi=None):
+    """Who is this card? Either the raw barcode string (test pack format) or the 10 digit DoD ID
+    that the scanner page already parsed on the device. Exactly one. Either way the ID is hashed
+    with the secret key right here and the raw value goes out of scope."""
+    if (barcode is None) == (edipi is None):
+        raise ValueError("Field 'barcode': send the card barcode or the DoD ID (edipi), "
+                         "not both and not neither.")
+    if barcode is not None:
+        return hash_barcode(barcode)
+    if not isinstance(edipi, str) or not _EDIPI.match(edipi.strip()):
+        raise ValueError("Field 'edipi': must be 10 digits.")
+    return identity.hash_edipi(edipi.strip(), identity.load_edipi_key())
+
+
 def hash_barcode(raw):
     """Raw barcode in, keyed EDIPI hash out. The raw strings go out of scope here."""
     edipi = parse_barcode(raw)
@@ -116,8 +133,8 @@ def _view(conn, event_id):
     return view
 
 
-def open_event(conn, actor_id, session_id, barcode, client_ref=None):
-    edipi_hash = hash_barcode(barcode)
+def open_event(conn, actor_id, session_id, barcode, client_ref=None, edipi=None):
+    edipi_hash = hash_identity(barcode, edipi)
     event_id = fitness.open_event(conn, actor_id, session_id, edipi_hash, client_ref)
     return _view(conn, event_id)
 
@@ -141,8 +158,8 @@ def submit(conn, actor_id, event_id):
 # Same rule: one Vault call per POST, and the Vault writes the record and its audit entry
 # in one transaction.
 
-def ioct_pair(conn, actor_id, session_id, barcode, tag_uid, client_ref=None):
-    edipi_hash = hash_barcode(barcode)
+def ioct_pair(conn, actor_id, session_id, barcode, tag_uid, client_ref=None, edipi=None):
+    edipi_hash = hash_identity(barcode, edipi)
     event_id = ioct.pair(conn, actor_id, session_id, edipi_hash, tag_uid, client_ref)
     return _view(conn, event_id)
 
@@ -191,9 +208,22 @@ def _log_rejected(conn, actor_id, section_id, class_date, reason):
                      data={"class_date": class_date, "reason": reason})
 
 
-def attendance_mark(conn, actor_id, section_id, class_date, status, barcode, client_ref=None):
-    edipi_hash = hash_barcode(barcode)
+def attendance_mark(conn, actor_id, section_id, class_date, status, barcode=None,
+                    client_ref=None, cadet_id=None, edipi=None):
+    """Scan a card (`barcode`) to mark a cadet, or send `cadet_id` (from the roster) to correct
+    one row by hand. Exactly one of the two. Marking again with a different status is a
+    correction: the Vault keeps the old status in the audit entry."""
+    if (barcode is None and edipi is None) == (cadet_id is None):
+        raise ValueError("Field 'barcode': send the card (barcode or edipi), or cadet_id (from the "
+                         "roster) to correct a row, but not both and not neither.")
+    if cadet_id is None:
+        edipi_hash = hash_identity(barcode, edipi)
+    else:
+        row = conn.execute("SELECT edipi_hash FROM cadet WHERE id = ?", (cadet_id,)).fetchone()
+        edipi_hash = row["edipi_hash"] if row is not None else None  # unknown id: not on a roster
     try:
+        if edipi_hash is None:
+            raise NotFound("cadet not found")
         att_id = attendance.mark(conn, actor_id, section_id, edipi_hash, class_date,
                                  status, client_ref)
     except (PermissionDenied, NotFound) as exc:
@@ -205,8 +235,9 @@ def attendance_mark(conn, actor_id, section_id, class_date, status, barcode, cli
             conn.execute("ROLLBACK")
         _log_rejected(conn, actor_id, section_id, class_date, reason)
         raise exc
+    who = identity.cadet_by_hash(conn, edipi_hash)
     return {"attendance_id": att_id, "section_id": section_id, "class_date": class_date,
-            "status": status}
+            "status": status, "cadet_name": f"{who['last_name']}, {who['first_name']}"}
 
 
 def attendance_roster(conn, actor_id, section_id, class_date):
@@ -220,6 +251,94 @@ def attendance_roster(conn, actor_id, section_id, class_date):
         raise PermissionDenied("only this section's instructor can view the roster")
     return {"section_id": section_id, "class_date": class_date,
             "roster": attendance.roster(conn, section_id, class_date)}
+
+
+# ---- who is this card? (CAC sign-in, lookup, registration) -------------------------
+# The scanner page parses the card on the device and sends the 10 digit DoD ID over HTTPS. It is
+# hashed here with the secret key (the page never holds it) and never stored, logged or returned.
+# Staff and cadets live in the Vault (app_user and cadet tables, keyed by the hash). A scan
+# IDENTIFIES a person, it does not prove it is them: anyone holding a photo of a card barcode could
+# present it. Real proof needs the card chip and a reader, which is out of scope.
+
+SIGNIN_ROLES = {"grader": {"grader", "oic"}}   # position -> Vault roles allowed to sign in as it
+REGISTER_ROLES = {"grader", "oic", "instructor", "cadet"}
+
+
+def _log_core(conn, actor_id, action, data):
+    with db.transaction(conn):
+        audit.append(conn, function="CORE", action=action, actor_id=actor_id,
+                     entity_type="app_user", entity_id=actor_id, data=data)
+
+
+def cac_signin(conn, edipi, position):
+    """Returns what the caller needs to issue a session: kind, actor_id or cadet hash, role, name.
+    Raises PermissionDenied (403) if this card is not registered for that position. Each refusal
+    is written to the audit log (position and reason only, never an ID or hash)."""
+    h = hash_identity(None, edipi)
+    if position == "grader":
+        row = conn.execute("SELECT id, display_name, role FROM app_user WHERE edipi_hash = ? "
+                           "AND active = 1", (h,)).fetchone()
+        if row is None or row["role"] not in SIGNIN_ROLES["grader"]:
+            _log_core(conn, None, "SIGN_IN_REFUSED",
+                      {"position": position, "reason": "card is not a registered grader or OIC"})
+            raise PermissionDenied("This card is not registered as a grader or OIC.")
+        _log_core(conn, row["id"], "SIGNED_IN", {"position": position, "role": row["role"]})
+        return {"kind": "staff", "actor_id": row["id"], "role": row["role"],
+                "name": row["display_name"], "cadet_hash": None}
+    row = conn.execute("SELECT last_name, first_name FROM cadet WHERE edipi_hash = ? AND active = 1",
+                       (h,)).fetchone()
+    if row is None:
+        _log_core(conn, None, "SIGN_IN_REFUSED",
+                  {"position": position, "reason": "card is not a registered cadet"})
+        raise PermissionDenied("This card is not registered as a cadet.")
+    _log_core(conn, None, "SIGNED_IN", {"position": position, "role": "cadet"})
+    return {"kind": "cadet", "actor_id": None, "role": "cadet",
+            "name": f"{row['last_name']}, {row['first_name']}", "cadet_hash": h}
+
+
+def identity_lookup(conn, edipi):
+    """A grader scans a cadet's card to confirm who it is. Returns the name the database holds,
+    never the hash. Read only."""
+    h = hash_identity(None, edipi)
+    c = conn.execute("SELECT last_name, first_name FROM cadet WHERE edipi_hash = ? AND active = 1",
+                     (h,)).fetchone()
+    if c is not None:
+        return {"found": True, "kind": "cadet", "name": f"{c['last_name']}, {c['first_name']}",
+                "role": "cadet"}
+    u = conn.execute("SELECT display_name, role FROM app_user WHERE edipi_hash = ? AND active = 1",
+                     (h,)).fetchone()
+    if u is not None:
+        return {"found": True, "kind": "staff", "name": u["display_name"], "role": u["role"]}
+    return {"found": False, "kind": "unknown", "name": None, "role": None}
+
+
+def register_person(conn, actor_id, edipi, first_name, last_name, role):
+    """Admin adds one person. A cadet goes in the cadet table, everyone else in app_user. One Vault
+    call (one transaction, one audit entry)."""
+    if role not in REGISTER_ROLES:
+        raise ValueError("Field 'role': must be one of " + str(sorted(REGISTER_ROLES)) + ".")
+    h = hash_identity(None, edipi)
+    if (conn.execute("SELECT 1 FROM cadet WHERE edipi_hash = ?", (h,)).fetchone()
+            or conn.execute("SELECT 1 FROM app_user WHERE edipi_hash = ?", (h,)).fetchone()):
+        raise InvalidTransition("This person is already registered.")
+    last, first = last_name.strip(), first_name.strip()
+    if role == "cadet":
+        identity.add_cadet(conn, actor_id, h, last, first)
+    else:
+        identity.add_user(conn, actor_id, f"{last}, {first}", role, h)
+    return {"registered": True, "name": f"{last}, {first}", "role": role}
+
+
+def people(conn):
+    """Everyone registered with a card, by name and role. No hashes, no IDs."""
+    out = [{"name": r["display_name"], "kind": "staff", "role": r["role"], "active": bool(r["active"])}
+           for r in conn.execute("SELECT display_name, role, active FROM app_user "
+                                 "WHERE edipi_hash IS NOT NULL ORDER BY display_name")]
+    out += [{"name": f"{r['last_name']}, {r['first_name']}", "kind": "cadet", "role": "cadet",
+             "active": bool(r["active"])}
+            for r in conn.execute("SELECT last_name, first_name, active FROM cadet "
+                                  "ORDER BY last_name, first_name")]
+    return {"count": len(out), "people": out}
 
 
 # ---- results read (Demo 3, PBI-08) -------------------------------------------

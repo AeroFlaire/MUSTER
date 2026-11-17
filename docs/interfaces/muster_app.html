@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MUSTER Demo App</title>
+<style>
+  :root { --bg:#f3f4f8; --card:#fff; --ink:#1d2230; --mute:#5b6273; --line:#d3d7e2; --brand:#1c3d6e; --brand-ink:#fff;
+          --accent:#b8860b; --ok-bg:#e5f5ea; --ok:#17763a; --bad-bg:#fdeceb; --bad:#b3261e; --warn-bg:#fff4d6; --warn:#7a5200;
+          --soft:#eef1f8; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151c; --card:#1b1f29; --ink:#e8eaf1; --mute:#9aa2b4; --line:#343a4a;
+          --brand:#7fa8e6; --brand-ink:#0d1320; --accent:#e0b84a; --ok-bg:#123020; --ok:#6fd58f; --bad-bg:#3a1514; --bad:#ff8a80;
+          --warn-bg:#352a0e; --warn:#f2c35b; --soft:#232837; } }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); margin:0; }
+  header { background:var(--brand); color:var(--brand-ink); padding:14px 22px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between; }
+  header h1 { margin:0; font-size:20px; letter-spacing:.04em; }
+  header .tag { font-size:12px; opacity:.85; }
+  .who { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
+  .who select, .who input { padding:6px 8px; border-radius:6px; border:0; font-size:13px; max-width:210px; }
+  .badge { display:inline-block; padding:3px 10px; border-radius:999px; background:rgba(255,255,255,.18); font-size:12px; }
+  main { max-width:960px; margin:0 auto; padding:18px; }
+  nav { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  nav button { background:var(--card); color:var(--ink); border:1px solid var(--line); padding:9px 16px; border-radius:8px; font-size:14px; cursor:pointer; }
+  nav button.on { background:var(--brand); color:var(--brand-ink); border-color:var(--brand); }
+  section.panel { display:none; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px; }
+  section.panel.on { display:block; }
+  h2 { margin:0 0 4px; font-size:18px; } .sub { color:var(--mute); font-size:13px; margin:0 0 16px; }
+  .step { margin:14px 0 6px; font-weight:700; font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--mute); }
+  .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  label { display:block; font-size:13px; font-weight:600; margin-bottom:4px; }
+  input, select { width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); font-size:14px; }
+  fieldset { border:0; margin:0; padding:0; min-width:0; }
+  fieldset:disabled { opacity:.45; }
+  .choice { display:flex; gap:10px; flex-wrap:wrap; }
+  .choice label { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:8px; padding:10px 18px; cursor:pointer; margin:0; background:var(--soft); }
+  .choice input { width:auto; }
+  .choice label:has(input:checked) { border-color:var(--brand); background:var(--card); box-shadow:inset 0 0 0 2px var(--brand); }
+  button.go { background:var(--brand); color:var(--brand-ink); border:0; border-radius:8px; padding:12px 22px; font-size:16px; cursor:pointer; margin-top:16px; }
+  button.go:disabled { opacity:.55; cursor:wait; }
+  button.alt { background:var(--soft); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 14px; cursor:pointer; font-size:14px; }
+  .banner { margin-top:16px; padding:14px 16px; border-radius:8px; display:none; }
+  .banner.ok { display:block; background:var(--ok-bg); color:var(--ok); border:1px solid var(--ok); }
+  .banner.bad { display:block; background:var(--bad-bg); color:var(--bad); border:1px solid var(--bad); }
+  .banner.info { display:block; background:var(--warn-bg); color:var(--warn); border:1px solid var(--warn); }
+  .banner h3 { margin:0 0 4px; font-size:17px; } .banner p { margin:3px 0; font-size:14px; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mute); }
+  .pass { color:var(--ok); font-weight:700; } .fail { color:var(--bad); font-weight:700; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:12px; background:var(--soft); border:1px solid var(--line); }
+  .big { font-size:30px; font-weight:800; margin:4px 0; }
+  details { margin-top:18px; } summary { cursor:pointer; color:var(--mute); font-size:13px; }
+  pre.log { background:#10131a; color:#8ff0a4; padding:12px; border-radius:8px; font-size:12px; white-space:pre-wrap; max-height:260px; overflow:auto; }
+  .note { color:var(--mute); font-size:12.5px; margin-top:14px; }
+  .scope { margin:0 0 10px; padding:10px 14px; border-radius:8px; background:var(--soft); border:1px solid var(--line); font-size:14px; }
+  .hide { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>MUSTER</h1><div class="tag">Synthetic data only. Real Gatekeeper and Vault on this machine.</div></div>
+  <div class="who">
+    <label for="who" style="margin:0;color:inherit">Signed in as</label>
+    <select id="who"></select>
+    <input id="paste" class="hide" type="password" placeholder="paste a token" autocomplete="off">
+    <span class="badge" id="badge">not signed in</span>
+  </div>
+</header>
+<main>
+  <div id="notice"></div>
+  <nav id="nav">
+    <button data-tab="grade" class="on">Grade a cadet</button>
+    <button data-tab="results">Results</button>
+    <button data-tab="attendance">Attendance</button>
+  </nav>
+
+  <!-- GRADE -->
+  <section class="panel on" id="tab-grade">
+    <h2>Grade a cadet</h2>
+    <p class="sub">The Gatekeeper works out every score from the official tables. Nobody types a score.</p>
+    <div class="step">Step 1. Sex (this picks the scoring column)</div>
+    <div class="choice" id="sexChoice">
+      <label><input type="radio" name="sex" value="male"> Male</label>
+      <label><input type="radio" name="sex" value="female"> Female</label>
+    </div>
+    <p class="note" id="colNote">Choose sex first. The rest of the form unlocks after that.</p>
+    <fieldset id="gradeForm" disabled>
+      <div class="step">Step 2. Test and cadet</div>
+      <div class="row">
+        <div><label>Test</label>
+          <div class="choice"><label><input type="radio" name="ttype" value="AFT" checked> AFT</label>
+          <label><input type="radio" name="ttype" value="IOCT"> IOCT</label></div></div>
+        <div><label for="age">Age group</label><select id="age"></select></div>
+        <div><label for="cadet">Cadet (fake, from the test pack)</label><select id="cadet"></select></div>
+      </div>
+      <div class="step">Step 3. Scan the card</div>
+      <label for="barcode">Back barcode (sent once, hashed by the Gatekeeper, never stored)</label>
+      <input id="barcode" autocomplete="off">
+
+      <div id="aftBox">
+        <div class="step">Step 4. Raw results</div>
+        <div class="row">
+          <div><label>Deadlift (lbs)</label><input id="MDL"></div>
+          <div><label>Hand-release push-ups (reps)</label><input id="HRP"></div>
+          <div><label>Sprint-drag-carry (m:ss)</label><input id="SDC"></div>
+          <div><label>Plank (m:ss)</label><input id="PLK"></div>
+          <div><label>2-mile run (m:ss)</label><input id="2MR"></div>
+        </div>
+      </div>
+      <div id="ioctBox" class="hide">
+        <div class="step">Step 4. Timed run</div>
+        <div class="row">
+          <div><label for="tag">Wristband</label><select id="tag"><option>TAG-017</option><option>TAG-018</option><option>TAG-019</option></select></div>
+          <div><label for="runtime">Run time for the simulated gate (m:ss)</label><input id="runtime"></div>
+        </div>
+        <p class="note">The real RFID gate is Eliakim's hardware. Here a demo gate posts the START and END reads, and the Vault works out the time.</p>
+      </div>
+      <button class="go" id="run">Score it</button>
+    </fieldset>
+    <div id="gradeOut" class="banner" role="status" aria-live="polite"></div>
+    <div id="gradeTable"></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="panel" id="tab-results">
+    <h2>Results</h2>
+    <p class="sub">What the signed-in person is allowed to see. The server decides, not this page.</p>
+    <div class="row">
+      <div><label for="rtype">Show</label><select id="rtype"><option value="">All tests</option><option>AFT</option><option>IOCT</option></select></div>
+      <div><label for="rsex">IOCT grade shown for</label><select id="rsex"><option value="male">Men (M|C column)</option><option value="female">Women (F column)</option></select></div>
+    </div>
+    <button class="go" id="refresh">Load results</button>
+    <div id="resOut" class="banner" role="status" aria-live="polite"></div>
+    <div id="scope" class="scope hide"></div>
+    <div id="resTable"></div>
+    <p class="note">The database does not store sex, so IOCT grades are shown for the column you pick here.</p>
+  </section>
+
+  <!-- ATTENDANCE -->
+  <section class="panel" id="tab-attendance">
+    <h2>Attendance</h2>
+    <p class="sub">Scan a CAC and the cadet is marked present. The instructor only touches the roster to fix a mistake.</p>
+    <div class="row">
+      <div><label for="sec">Section</label><select id="sec"><option value="1">Section 1 (Instructor A)</option><option value="2">Section 2 (Instructor B)</option></select></div>
+      <div><label for="day">Class date</label><input id="day" type="date"></div>
+    </div>
+    <div class="step">Scan a card</div>
+    <input id="scan" placeholder="Scan a CAC here. A USB scanner types the code and presses Enter." autocomplete="off">
+    <div class="row" style="margin-top:10px;align-items:end">
+      <div><label for="acadet">No scanner? Demo helper: simulate a scan of</label><select id="acadet"></select></div>
+      <div><button class="alt" id="simscan">Simulate scan</button></div>
+    </div>
+    <div id="attOut" class="banner" role="status" aria-live="polite"></div>
+    <div class="step">Roster (updates after every scan)</div>
+    <div id="attTable"></div>
+    <p class="note">Fix a mistake: change the status in a row and press Save. The Vault keeps the old status in the audit log.</p>
+  </section>
+
+  <details><summary>Under the hood: every request this page made</summary><pre class="log" id="log">(nothing yet)</pre></details>
+  <p class="note">Restart the demo server to reset the data. The page never sends a role, a score, or an ID hash, and it does not save the barcode anywhere.</p>
+</main>
+
+<script src="demo_tokens.js" onerror="void 0"></script>
+<script>
+const API = "http://127.0.0.1:5000";
+const CADETS = [
+  {
+    "name": "Cadet Alpha",
+    "barcode": "PDF417_TEST_DATA_9000000001_END",
+    "aft": {
+      "MDL": "340",
+      "HRP": "60",
+      "SDC": "1:30",
+      "PLK": "3:40",
+      "2MR": "13:15"
+    },
+    "ioct_time": "2:35"
+  },
+  {
+    "name": "Cadet Bravo",
+    "barcode": "PDF417_TEST_DATA_9000000002_END",
+    "aft": {
+      "MDL": "140",
+      "HRP": "35",
+      "SDC": "2:10",
+      "PLK": "1:45",
+      "2MR": "15:45"
+    },
+    "ioct_time": "3:20"
+  },
+  {
+    "name": "Cadet Charlie",
+    "barcode": "PDF417_TEST_DATA_9000000003_END",
+    "aft": {
+      "MDL": "280",
+      "HRP": "45",
+      "SDC": "1:55",
+      "PLK": "3:00",
+      "2MR": "14:20"
+    },
+    "ioct_time": "2:55"
+  },
+  {
+    "name": "Cadet Delta",
+    "barcode": "PDF417_TEST_DATA_9000000004_END",
+    "aft": {
+      "MDL": "200",
+      "HRP": "40",
+      "SDC": "2:00",
+      "PLK": "2:15",
+      "2MR": "15:10"
+    },
+    "ioct_time": "3:10"
+  },
+  {
+    "name": "Cadet Echo",
+    "barcode": "PDF417_TEST_DATA_9000000005_END",
+    "aft": {
+      "MDL": "300",
+      "HRP": "55",
+      "SDC": "1:40",
+      "PLK": "3:10",
+      "2MR": "13:50"
+    },
+    "ioct_time": "2:45"
+  },
+  {
+    "name": "Cadet Foxtrot",
+    "barcode": "PDF417_TEST_DATA_9000000006_END",
+    "aft": {
+      "MDL": "220",
+      "HRP": "42",
+      "SDC": "2:05",
+      "PLK": "2:30",
+      "2MR": "16:00"
+    },
+    "ioct_time": "3:40"
+  },
+  {
+    "name": "Cadet Golf",
+    "barcode": "PDF417_TEST_DATA_9000000007_END",
+    "aft": {
+      "MDL": "320",
+      "HRP": "50",
+      "SDC": "1:45",
+      "PLK": "3:30",
+      "2MR": "14:05"
+    },
+    "ioct_time": "2:50"
+  },
+  {
+    "name": "Cadet Hotel",
+    "barcode": "PDF417_TEST_DATA_9000000008_END",
+    "aft": {
+      "MDL": "180",
+      "HRP": "38",
+      "SDC": "2:15",
+      "PLK": "1:55",
+      "2MR": "16:30"
+    },
+    "ioct_time": "3:55"
+  },
+  {
+    "name": "Cadet India",
+    "barcode": "PDF417_TEST_DATA_9000000009_END",
+    "aft": {
+      "MDL": "260",
+      "HRP": "48",
+      "SDC": "1:50",
+      "PLK": "2:50",
+      "2MR": "14:40"
+    },
+    "ioct_time": "3:05"
+  },
+  {
+    "name": "Cadet Juliet",
+    "barcode": "PDF417_TEST_DATA_9000000010_END",
+    "aft": {
+      "MDL": "240",
+      "HRP": "46",
+      "SDC": "1:58",
+      "PLK": "2:40",
+      "2MR": "15:20"
+    },
+    "ioct_time": "3:15"
+  }
+];
+const COLUMN = { male: "M|C", female: "F" };
+const EVENTS = { MDL: "Deadlift", HRP: "Hand-release push-ups", SDC: "Sprint-drag-carry", PLK: "Plank", "2MR": "2-mile run" };
+const AGES = ["17-21","22-26","27-31","32-36","37-41","42-46","47-51","52-56","57-61","62+"];
+const T = window.DEMO_TOKENS || {};
+const $ = id => document.getElementById(id);
+const state = { sex: null, who: "grader" };
+
+// ---- small helpers --------------------------------------------------------
+function el(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; }
+function table(head, rows) {
+  const t = el("table"), th = el("tr");
+  head.forEach(h => th.appendChild(el("th", h))); t.appendChild(th);
+  rows.forEach(r => { const tr = el("tr"); r.forEach(c => { const td = el("td");
+    if (c && c.node) td.appendChild(c.node); else td.textContent = c; tr.appendChild(td); }); t.appendChild(tr); });
+  return t;
+}
+function verdict(result) { const s = el("span", result, result === "PASS" ? "pass" : (result === "FAIL" ? "fail" : "pill")); return { node: s }; }
+function banner(id, kind, title, lines) {
+  const b = $(id); b.className = "banner " + kind; b.textContent = "";
+  b.appendChild(el("h3", title)); (lines || []).forEach(l => b.appendChild(el("p", l)));
+}
+function clearBanner(id) { $(id).className = "banner"; $(id).textContent = ""; }
+const WHY = { 401: "The Gatekeeper does not know who you are. Nothing reached the Vault.",
+  403: "You are signed in, but this role may not do that. Nothing was changed.",
+  404: "That record does not exist. Nothing was changed.",
+  409: "The record is in a state that does not allow this. Nothing was changed.",
+  422: "The values are not acceptable. Nothing was changed.",
+  400: "The request was not valid. Nothing was changed.",
+  500: "Something failed inside. Nothing was written." };
+function refused(id, r, step) {
+  const e = (r.data && r.data.error) || { code: "error", message: "No details." };
+  banner(id, "bad", "Refused: " + r.status + " " + e.code,
+    [e.message, WHY[r.status] || "Nothing was written.", "Step: " + step + "   Reference: " + (e.request_id || "none")]);
+}
+function logLine(s) { const l = $("log"); if (l.textContent === "(nothing yet)") l.textContent = ""; l.textContent += s + "\n"; l.scrollTop = l.scrollHeight; }
+
+// ---- who is signed in -----------------------------------------------------
+const LABELS = { grader: "Grader", oic: "OIC (officer in charge)", cadet: "Cadet Alpha", cadet_2: "Cadet Bravo",
+  instructor: "Instructor A", instructor_b: "Instructor B", compiler_station: "Score compiler station",
+  gate_station: "Gate station", admin: "Admin" };
+function buildWho() {
+  const s = $("who");
+  Object.keys(LABELS).filter(k => T[k]).forEach(k => { const o = el("option", LABELS[k]); o.value = k; s.appendChild(o); });
+  [["none", "Not signed in"], ["paste", "Paste a token..."]].forEach(([v, t]) => { const o = el("option", t); o.value = v; s.appendChild(o); });
+  if (!Object.keys(T).length) {
+    $("notice").appendChild(el("div", "No demo tokens found. In a terminal run: python demo_full_run.py --screen (from gatekeeper/api), then reload this page. Or choose 'Paste a token'.", "banner info"));
+    s.value = "paste"; state.who = "paste"; $("paste").classList.remove("hide");
+  } else { s.value = T.grader ? "grader" : s.options[0].value; state.who = s.value; }
+  setBadge();
+}
+function setBadge() { $("badge").textContent = state.who === "none" ? "not signed in" : (LABELS[state.who] || "custom token"); }
+function token(whoOverride) {
+  const w = whoOverride || state.who;
+  if (w === "none") return null;
+  if (w === "paste") return $("paste").value.trim() || null;
+  return T[w] || null;
+}
+$("who").addEventListener("change", () => { state.who = $("who").value; $("paste").classList.toggle("hide", state.who !== "paste"); setBadge();
+  ["gradeOut", "resOut", "attOut"].forEach(clearBanner); $("gradeTable").textContent = ""; $("resTable").textContent = ""; $("attTable").textContent = "";
+  $("scope").classList.add("hide"); });
+
+async function call(method, path, body, whoOverride) {
+  const headers = { "Content-Type": "application/json", "X-Contract-Version": "v1" };
+  const tok = token(whoOverride);
+  if (tok) headers["Authorization"] = "Bearer " + tok;
+  logLine(">>> " + method + " " + path + "   (as " + (whoOverride || state.who) + ")");
+  try {
+    const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : null });
+    const data = await res.json();
+    logLine("<<< " + res.status + " " + (data.error ? data.error.code : "OK"));
+    return { status: res.status, data };
+  } catch (err) {
+    logLine("<<< could not reach the Gatekeeper");
+    return { status: 0, data: { error: { code: "unreachable", message: "Could not reach the Gatekeeper. Is it running? (python demo_full_run.py --screen)" } } };
+  }
+}
+
+// ---- tabs -------------------------------------------------------------------
+$("nav").addEventListener("click", e => { const t = e.target.dataset && e.target.dataset.tab; if (!t) return;
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b === e.target));
+  document.querySelectorAll("section.panel").forEach(p => p.classList.toggle("on", p.id === "tab-" + t)); });
+
+// ---- grade form ---------------------------------------------------------------
+AGES.forEach(a => { const o = el("option", a); $("age").appendChild(o); });
+CADETS.forEach((c, i) => { [$("cadet"), $("acadet")].forEach(s => { const o = el("option", c.name); o.value = i; s.appendChild(o); }); });
+function fill() {
+  const c = CADETS[$("cadet").value];
+  $("barcode").value = c.barcode;
+  ["MDL","HRP","SDC","PLK","2MR"].forEach(k => { $(k).value = c.aft[k]; });
+  $("runtime").value = c.ioct_time;
+}
+$("cadet").addEventListener("change", fill); fill();
+document.querySelectorAll("input[name=sex]").forEach(r => r.addEventListener("change", () => {
+  state.sex = r.value; $("gradeForm").disabled = false; $("rsex").value = state.sex;
+  $("colNote").textContent = (state.sex === "male" ? "Male" : "Female") + " selected. Scoring column: " + COLUMN[state.sex] + ".";
+}));
+document.querySelectorAll("input[name=ttype]").forEach(r => r.addEventListener("change", () => {
+  const ioct = document.querySelector("input[name=ttype]:checked").value === "IOCT";
+  $("aftBox").classList.toggle("hide", ioct); $("ioctBox").classList.toggle("hide", !ioct); $("age").disabled = ioct; }));
+
+function mmss(s) { const m = /^(\d+):([0-5]\d)$/.exec(String(s).trim()); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+
+async function gradeAft() {
+  const col = COLUMN[state.sex], age = $("age").value;
+  const open = await call("POST", "/v0/sessions/1/events", { barcode: $("barcode").value });
+  if (open.status >= 300) return refused("gradeOut", open, "open scorecard");
+  const eid = open.data.event_id, rows = [];
+  for (const code of Object.keys(EVENTS)) {
+    const raw = $(code).value;
+    const r = await call("POST", "/v0/events/" + eid + "/components", { component: code, raw_value: String(raw), age_group: age, scoring_column: col });
+    if (r.status >= 300) return refused("gradeOut", r, "enter " + EVENTS[code]);
+    rows.push([EVENTS[code], raw, String(r.data.points)]);
+  }
+  const sub = await call("POST", "/v0/events/" + eid + "/submit");
+  if (sub.status >= 300) return refused("gradeOut", sub, "submit");
+  const g = sub.data.grading;
+  banner("gradeOut", g.result === "PASS" ? "ok" : "bad", "Scorecard #" + eid + ": " + g.result,
+    ["Cadet: " + sub.data.scorecard.cadet_name, "Total " + g.total_points + " points. The rule: 60 points on every event.",
+     g.failed_events && g.failed_events.length ? "Below 60 on: " + g.failed_events.join(", ") : "Every event at 60 or more.",
+     "Scored with age group " + age + ", column " + col + ". Saved with one audit entry per step."]);
+  $("gradeTable").textContent = ""; $("gradeTable").appendChild(table(["Event", "Raw result", "Points"], rows));
+}
+
+async function gradeIoct() {
+  const col = COLUMN[state.sex], secs = mmss($("runtime").value);
+  if (secs === null) return banner("gradeOut", "bad", "Run time must look like 2:35", []);
+  const pair = await call("POST", "/v0/sessions/2/ioct/pair", { barcode: $("barcode").value, tag_uid: $("tag").value });
+  if (pair.status >= 300) return refused("gradeOut", pair, "pair the wristband");
+  const eid = pair.data.event_id;
+  if (!token("gate_station")) return banner("gradeOut", "info", "Wristband paired (event #" + eid + ")", ["No gate station token here, so the demo gate cannot post reads. Use the demo server's tokens."]);
+  const start = Date.now() + 1000;
+  for (const [gate, at] of [["START", start], ["END", start + secs * 1000]]) {
+    const r = await call("POST", "/v0/sessions/2/gate-reads", { tag_uid: $("tag").value, gate, read_at_ms: at, gate_device: gate }, "gate_station");
+    if (r.status >= 300) return refused("gradeOut", r, gate + " gate read");
+  }
+  const comp = await call("POST", "/v0/events/" + eid + "/ioct/compute");
+  if (comp.status >= 300) return refused("gradeOut", comp, "compute the time");
+  const sub = await call("POST", "/v0/events/" + eid + "/submit");
+  if (sub.status >= 300) return refused("gradeOut", sub, "submit");
+  const g = sub.data.grading, c = g.by_column[col];
+  banner("gradeOut", c.result === "PASS" ? "ok" : "bad", "IOCT #" + eid + ": " + c.result,
+    ["Cadet: " + sub.data.scorecard.cadet_name, "Time computed by the Vault: " + g.elapsed,
+     c.points + " points, grade " + c.grade + (c.tab ? ". TAB: never has to be retaken." : "."),
+     "Graded for column " + col + ". Pass is a D or better, TAB is an A- or better."]);
+  $("gradeTable").textContent = "";
+  $("gradeTable").appendChild(table(["Time", "Column", "Points", "Grade", "Result", "TAB"],
+    [[g.elapsed, col, String(c.points), c.grade, verdict(c.result), c.tab ? "yes" : "no"]]));
+}
+
+$("run").addEventListener("click", async () => {
+  if (!state.sex) return;
+  $("run").disabled = true; clearBanner("gradeOut"); $("gradeTable").textContent = "";
+  try { document.querySelector("input[name=ttype]:checked").value === "AFT" ? await gradeAft() : await gradeIoct(); }
+  finally { $("run").disabled = false; }
+});
+
+// ---- results ---------------------------------------------------------------------
+$("refresh").addEventListener("click", loadResults);
+async function loadResults() {
+  clearBanner("resOut"); $("resTable").textContent = ""; $("scope").classList.add("hide");
+  const t = $("rtype").value, r = await call("GET", "/v0/results" + (t ? "?test_type=" + t : ""));
+  if (r.status !== 200) return refused("resOut", r, "read results");
+  const col = COLUMN[$("rsex").value], d = r.data;
+  const sc = $("scope"); sc.classList.remove("hide");
+  sc.textContent = d.scope === "all" ? "You can see ALL scores (" + d.count + "). This role is allowed to." : "You can see only YOUR OWN scores (" + d.count + "). Nobody else's are sent to this page.";
+  if (!d.results.length) { $("resTable").appendChild(el("p", "No scores yet.", "note")); return; }
+  const rows = d.results.map(x => {
+    const g = x.grading || {}, card = x.scorecard;
+    let result, detail;
+    if (card.test_type === "AFT") { result = verdict(g.result || "-"); detail = g.total_points !== undefined ? g.total_points + " points" : "in progress"; }
+    else if (g.by_column) { const c = g.by_column[col]; result = verdict(c.result); detail = g.elapsed + ", " + c.points + " points, " + c.grade + (c.tab ? ", TAB" : ""); }
+    else { result = verdict("-"); detail = "no time yet"; }
+    return ["#" + x.event_id, card.cadet_name, card.test_type, { node: el("span", x.status, "pill") }, detail, result];
+  });
+  $("resTable").appendChild(table(["Event", "Cadet", "Test", "Status", "Score", "Result"], rows));
+}
+
+// ---- attendance: scan marks present, the roster is only for fixing mistakes -----------------
+const STATUSES = ["PRESENT", "LATE", "ABSENT", "EXCUSED"];
+$("day").value = new Date().toISOString().slice(0, 10);
+async function loadRoster() {
+  $("attTable").textContent = "";
+  const r = await call("GET", "/v0/attendance/sections/" + $("sec").value + "/roster?class_date=" + $("day").value);
+  if (r.status >= 300) return refused("attOut", r, "read roster");
+  const rows = r.data.roster.map(x => {
+    const sel = el("select"); STATUSES.forEach(t => sel.appendChild(el("option", t)));
+    sel.value = x.status || "PRESENT";
+    const save = el("button", "Save", "alt"); save.addEventListener("click", () => fix(x, sel.value));
+    const box = el("span"); box.style.display = "flex"; box.style.gap = "6px"; box.append(sel, save);
+    return [x.last_name + ", " + x.first_name, { node: el("span", x.status || "not here yet", x.status ? "pill" : "note") }, { node: box }];
+  });
+  $("attTable").appendChild(table(["Cadet", "Status", "Fix (only if needed)"], rows));
+}
+async function scan(code) {
+  code = code.trim(); if (!code) return;
+  clearBanner("attOut");
+  const r = await call("POST", "/v0/attendance/marks", { section_id: +$("sec").value, class_date: $("day").value, barcode: code });
+  if (r.status >= 300) refused("attOut", r, "scan");
+  else banner("attOut", "ok", r.data.cadet_name + " is marked " + r.data.status, ["Section " + r.data.section_id + ", " + r.data.class_date + ". One record and one audit entry."]);
+  await loadRoster();
+}
+async function fix(row, status) {
+  clearBanner("attOut");
+  const r = await call("POST", "/v0/attendance/marks", { section_id: +$("sec").value, class_date: $("day").value, cadet_id: row.cadet_id, status });
+  if (r.status >= 300) refused("attOut", r, "fix attendance");
+  else banner("attOut", "ok", r.data.cadet_name + " changed to " + r.data.status, ["The old status stays in the audit log."]);
+  await loadRoster();
+}
+$("scan").addEventListener("keydown", async e => { if (e.key !== "Enter") return; e.preventDefault();
+  const v = $("scan").value; $("scan").value = ""; await scan(v); $("scan").focus(); });
+$("simscan").addEventListener("click", () => scan(CADETS[$("acadet").value].barcode));
+$("sec").addEventListener("change", loadRoster); $("day").addEventListener("change", loadRoster);
+document.querySelector("nav").addEventListener("click", e => { if (e.target.dataset && e.target.dataset.tab === "attendance") { loadRoster(); $("scan").focus(); } });
+
+buildWho();
+</script>
+</body>
+</html>

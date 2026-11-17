@@ -53,7 +53,11 @@ LIVE = {
     "POST /v0/events/<int:event_id>/supersede": ("supersede", 201),
     "POST /v0/attendance/marks": ("attendance_mark", 201),
     "GET /v0/attendance/sections/<int:section_id>/roster": ("attendance_roster", 200),
+    "POST /v0/identity/lookup": ("identity_lookup", 200),
+    "POST /v0/admin/register": ("register_person", 201),
+    "GET /v0/admin/people": ("people", 200),
 }
+SESSION_SECONDS = 4 * 60 * 60  # a CAC sign-in lasts one class period, then the card is scanned again
 
 DEMO_AFT_SESSION = 1
 DEMO_IOCT_SESSION = 2
@@ -62,8 +66,8 @@ DEMO_IOCT_SESSION = 2
 def _dispatch(name, conn, actor, kw, body):
     """One Vault write per request. Returns the JSON body."""
     if name == "open_event":
-        return bridge.open_event(conn, actor, kw["session_id"], body["barcode"],
-                                 body.get("client_ref"))
+        return bridge.open_event(conn, actor, kw["session_id"], body.get("barcode"),
+                                 body.get("client_ref"), body.get("edipi"))
     if name == "add_component":
         return bridge.add_component(conn, actor, kw["event_id"], body["component"],
                                     body["raw_value"], body["age_group"], body["scoring_column"])
@@ -72,8 +76,8 @@ def _dispatch(name, conn, actor, kw, body):
     if name == "scoring_standards":
         return scoring.standards_summary()
     if name == "ioct_pair":
-        return bridge.ioct_pair(conn, actor, kw["session_id"], body["barcode"],
-                                body["tag_uid"], body.get("client_ref"))
+        return bridge.ioct_pair(conn, actor, kw["session_id"], body.get("barcode"),
+                                body["tag_uid"], body.get("client_ref"), body.get("edipi"))
     if name == "gate_read":
         return bridge.gate_read(conn, actor, kw["session_id"], body["tag_uid"], body["gate"],
                                 body["read_at_ms"], body["gate_device"], body.get("client_ref"))
@@ -83,8 +87,16 @@ def _dispatch(name, conn, actor, kw, body):
         return bridge.supersede(conn, actor, kw["event_id"], body["reason"])
     if name == "attendance_mark":
         return bridge.attendance_mark(conn, actor, body["section_id"], body["class_date"],
-                                      body.get("status", "PRESENT"), body["barcode"],
-                                      body.get("client_ref"))
+                                      body.get("status", "PRESENT"), body.get("barcode"),
+                                      body.get("client_ref"), body.get("cadet_id"),
+                                      body.get("edipi"))
+    if name == "identity_lookup":
+        return bridge.identity_lookup(conn, body["edipi"])
+    if name == "register_person":
+        return bridge.register_person(conn, actor, body["edipi"], body["first_name"],
+                                      body["last_name"], body["role"])
+    if name == "people":
+        return bridge.people(conn)
     if name == "attendance_roster":
         day = request.args.get("class_date", "")
         if not stub.DATE_RE.match(day):
@@ -176,6 +188,69 @@ def results_view(app):
     return view
 
 
+def signin_view(app):
+    """POST /v0/auth/cac-signin. The page scanned the caller's own CAC and sends the parsed DoD ID
+    and the position they chose ("grader" or "cadet"). The database decides whether that card is
+    registered for that position. A mismatch is refused (403) and logged. On success the caller gets
+    a session token that expires, tied to the person (never to an ID)."""
+    def view():
+        body = request.get_json(silent=True)
+        bad = stub.validate_body({"edipi": ("edipi", True), "position": ("position", True)})
+        if bad:
+            return bad
+        body = request.get_json()
+        conn = None
+        try:
+            conn = bridge.connect(app.config["MUSTER_DB"])
+            who = bridge.cac_signin(conn, body["edipi"].strip(), body["position"])
+            token = app.config["CREDENTIALS"].issue(
+                "cac " + who["role"], who["actor_id"], who["cadet_hash"], ttl=SESSION_SECONDS)
+            return jsonify({"token": token, "role": who["role"], "position": body["position"],
+                            "name": who["name"], "expires_in_s": SESSION_SECONDS}), 200
+        except Exception as exc:  # noqa: BLE001
+            status, code, message = bridge.map_error(exc)
+            if status == 500:
+                app.logger.exception("Sign-in failed (details above; no request data logged)")
+            return stub.error(status, code, message)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    return view
+
+
+def serve_pages(app):
+    """The demo web app and Arjo's scanner files, served from the same address as the API. That
+    keeps the camera working (localhost or HTTPS is a secure context) and needs no CORS."""
+    from flask import abort, redirect, send_from_directory
+    root = HERE.parents[1] / "edge"
+
+    @app.route("/app/demo_tokens.js")
+    def demo_tokens():
+        tokens = app.config.get("DEMO_TOKENS") or {}
+        if request.remote_addr not in ("127.0.0.1", "::1"):
+            tokens = {}  # only the laptop itself gets the admin and gate tokens, never the network
+        resp = app.response_class("window.DEMO_TOKENS = " + json.dumps(tokens) + ";\n",
+                                  mimetype="text/javascript")
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    @app.route("/")
+    def home():
+        return redirect("/app/")
+
+    @app.route("/app/", defaults={"name": "index.html"})
+    @app.route("/app/<path:name>")
+    def app_files(name):
+        return send_from_directory(root / "app", name)
+
+    @app.route("/scanner/<path:name>")
+    def scanner_files(name):
+        if name.startswith(".cert"):
+            abort(404)
+        return send_from_directory(root / "scanner", name)
+
+
 def create_live_app(db_path, credentials):
     """`credentials` is an auth.CredentialStore (or a path to a saved one)."""
     app = stub.create_app()
@@ -191,7 +266,10 @@ def create_live_app(db_path, credentials):
             app.view_functions[key] = live_view(app, name, ok_status, roles, body_spec)
         elif key == "GET /v0/results":
             app.view_functions[key] = results_view(app)
+        elif key == "POST /v0/auth/cac-signin":
+            app.view_functions[key] = signin_view(app)
 
+    serve_pages(app)
     return app
 
 
@@ -264,7 +342,96 @@ def issue_demo_credentials(users, cadet_hashes=()):
     return store, tokens
 
 
+# ---- app mode: a database that keeps real people between runs --------------------------------
+# `python live_app.py --app` is the CAC version of the demo. The database persists (same
+# MUSTER_DB_KEY and MUSTER_EDIPI_KEY every run, see start_app.ps1), people are added by scanning
+# their own card on the Register screen, and sign-in is a scan. Nothing here is synthetic unless
+# --synthetic is given, which adds Arjo's fake test cards so the flow can be tried without anyone's
+# real card.
+
+DEFAULT_APP_DB = HERE / "muster_app.db"
+SYNTHETIC_CARDS = HERE.parents[1] / "edge" / "scanner" / "tests" / "synthetic_front.json"
+
+
+def seed_app(db_path, synthetic=False):
+    """Fresh app database: an admin, a gate station, a session host (OIC with no card), an open AFT
+    session (id 1), an open IOCT session (id 2) and wristbands TAG-017 to TAG-019. With `synthetic`,
+    also Arjo's fake cards: 9000000001 to 10 as cadets, 11 as a grader, 12 as the OIC, and 13 is left
+    unregistered so a refusal can be shown."""
+    from muster_vault import fitness, identity, ioct
+
+    for suffix in ("", "-wal", "-shm"):
+        Path(str(db_path) + suffix).unlink(missing_ok=True)
+    conn = bridge.connect(db_path)
+    bridge.init_schema(conn)
+    admin = identity.bootstrap_admin(conn, "Demo Admin")
+    identity.add_user(conn, admin, "Demo Gate", "gate_station")
+    host = identity.add_user(conn, admin, "Session Host", "oic")
+    assert fitness.open_session(conn, host, "AFT", "2026-11-19", "Demo Floor") == DEMO_AFT_SESSION
+    assert fitness.open_session(conn, host, "IOCT", "2026-11-19", "Demo Track") == DEMO_IOCT_SESSION
+    for tag in ("TAG-017", "TAG-018", "TAG-019"):
+        ioct.register_tag(conn, admin, tag, tag[-2:])
+    if synthetic:
+        key = identity.load_edipi_key()
+        cards = json.loads(SYNTHETIC_CARDS.read_text(encoding="utf-8"))
+        for c in cards:
+            if c["note"] and c["edipi"] != "9000000011" and c["edipi"] != "9000000012":
+                continue
+            n = int(c["edipi"][-2:])
+            h = identity.hash_edipi(c["edipi"], key)
+            e = c["expect"]
+            if n <= 10:
+                identity.add_cadet(conn, admin, h, e["lastName"], e["firstName"])
+            elif n == 11:
+                identity.add_user(conn, admin, f"{e['lastName']}, {e['firstName']}", "grader", h)
+            elif n == 12:
+                identity.add_user(conn, admin, f"{e['lastName']}, {e['firstName']}", "oic", h)
+    conn.close()
+
+
+def app_tokens(db_path):
+    """Fresh in-memory tokens for this run: the admin (Register screen) and the demo gate (the
+    simulated RFID gate). People sign in by scanning, so they get no token here."""
+    conn = bridge.connect(db_path)
+    ids = {r["role"]: r["id"] for r in conn.execute(
+        "SELECT id, role FROM app_user WHERE role IN ('admin', 'gate_station') ORDER BY id")}
+    conn.close()
+    store = auth.CredentialStore()
+    return store, {role: store.issue(f"app {role}", uid) for role, uid in ids.items()}
+
+
+def _lan_address():
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
 if __name__ == "__main__":
+    if "--app" in sys.argv:
+        db = Path(os.environ.get("MUSTER_DB", DEFAULT_APP_DB))
+        if "--reset" in sys.argv or not db.exists():
+            seed_app(db, synthetic="--synthetic" in sys.argv)
+            print(f"Built a new app database {db}" +
+                  (" with Arjo's fake test cards." if "--synthetic" in sys.argv else "."))
+        store, tokens = app_tokens(db)
+        flask_app = create_live_app(db, store)
+        flask_app.config["DEMO_TOKENS"] = tokens
+        https = "--https" in sys.argv
+        host = "0.0.0.0" if https else "127.0.0.1"
+        scheme = "https" if https else "http"
+        print()
+        print(f"  MUSTER app:  {scheme}://127.0.0.1:5000/app/   (open this on the laptop)")
+        if https:
+            print(f"  From a phone on the same network:  https://{_lan_address()}:5000/app/")
+            print("  The phone will warn about the certificate (self-signed). Accept it once.")
+            print("  Only the laptop itself can register people or use the demo gate.")
+        print("  Press Ctrl+C to stop.")
+        flask_app.run(host=host, port=5000, ssl_context="adhoc" if https else None)
+        sys.exit(0)
     db = Path(os.environ.get("MUSTER_DB", DEFAULT_DB))
     creds_path = Path(os.environ.get("MUSTER_CREDENTIALS", DEFAULT_CREDS))
     pack = Path(__file__).resolve().parents[2] / "tests" / "synthetic_test_pack.json"

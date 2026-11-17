@@ -80,6 +80,10 @@ Role sets, copied from the Vault: GRADER = grader, oic. STATION = compiler_stati
 | POST /v0/attendance/marks | instructor | attendance.mark (own section only) |
 | GET /v0/attendance/sections/{section_id}/roster?class_date= | instructor | attendance.roster (own section only) |
 | GET /v0/results?test_type=&session_id= | grader, oic (all scores); a cadet token (own scores only) | read only: fitness.scorecard for each event |
+| POST /v0/auth/cac-signin | none (this is how you get a token) | app_user or cadet lookup by hashed ID, audit entry |
+| POST /v0/identity/lookup | grader, oic | read only: the name the database holds for a scanned card |
+| POST /v0/admin/register | admin | identity.add_user or identity.add_cadet (one audit entry) |
+| GET /v0/admin/people | admin | read only: names and roles, no hashes |
 | GET /v0/audit/verify | oic, admin | audit.verify |
 | GET /v0/audit/head | oic, admin | audit.head |
 | GET /v0/audit/history?entity_type=&entity_id= | oic, admin | audit.entries_for |
@@ -530,14 +534,18 @@ Corrections never overwrite a saved score. `POST /v0/events/{event_id}/supersede
 
 An instructor marks a cadet in their own section. The cadet is identified by barcode (same rule as AFT: the Gatekeeper hashes it, the raw string is never stored or logged). `status` is optional and defaults to PRESENT.
 
-POST /v0/attendance/marks, role instructor. Body: `section_id`, `class_date` (YYYY-MM-DD), `barcode`, optional `status` (PRESENT, LATE, ABSENT, EXCUSED) and `client_ref`.
+POST /v0/attendance/marks, role instructor. Body: `section_id`, `class_date` (YYYY-MM-DD), then exactly one of `barcode` or `cadet_id`, plus optional `status` (PRESENT, LATE, ABSENT, EXCUSED) and `client_ref`.
+
+- Scan (the normal way): send the `barcode` from the card. With no `status` it marks the cadet PRESENT, so a scan updates attendance with nothing else to do. The response carries `cadet_name` so the screen can say who was just marked.
+- Correct a row (only if needed): send `cadet_id` from the roster read and the new `status`. This is the same write as a scan. If the cadet already has a different status for that class, the status changes and the audit entry (`ATTENDANCE_CORRECTED`) keeps the old one. Sending both fields, or neither, is 400 `validation_failed`.
 
 ```json
 {
   "attendance_id": 31,
   "section_id": 1,
   "class_date": "2026-11-17",
-  "status": "PRESENT"
+  "status": "PRESENT",
+  "cadet_name": "Alpha, Cadet"
 }
 ```
 
@@ -676,6 +684,72 @@ Each result is the same view the write endpoints return (status, scorecard, and 
   ]
 }
 ```
+
+## 5D. CAC sign-in, card lookup and registration (live)
+
+Everything that needs to know who a card belongs to now works from a scan. The scanner page (Arjo's `edge/scanner`) reads the CAC and parses it on the device, then sends the 10 digit DoD ID, called `edipi`, over HTTPS. The Gatekeeper hashes it with the secret key at once. The page never holds that key, and the ID is never stored, logged or returned. A request may carry either `barcode` (the synthetic test pack format) or `edipi`, exactly one of them, on open event, ioct pair and attendance marks. Sending both or neither is 400 `validation_failed`.
+
+Sign in: POST /v0/auth/cac-signin. Body `edipi` and `position` (`grader` or `cadet`, the choice the person made on screen). No token is needed. The database decides:
+- position `grader`: the card must belong to an active person whose role is `grader` or `oic`.
+- position `cadet`: the card must belong to an active cadet.
+- anything else is 403 `forbidden_role` ("This card is not registered as ...") and is written to the audit log as `SIGN_IN_REFUSED` with the position and reason only, no ID and no hash. A good sign-in is written as `SIGNED_IN`.
+
+The response carries a session token that expires (4 hours). Use it as `Authorization: Bearer <token>` like any other token. A grader or OIC session is tied to their staff record, so the role comes from the database as always. A cadet session is tied to that cadet's hashed ID, so it can read only their own results (section 5C) and every write is 403. The `name` is the name the database holds, so the screen can compare it to the name on the card.
+
+```json
+{
+  "token": "example-session-token-shown-once",
+  "role": "grader",
+  "position": "grader",
+  "name": "Basu, Example",
+  "expires_in_s": 14400
+}
+```
+
+Look up a card: POST /v0/identity/lookup, role grader or oic, body `edipi`. A grader scans a cadet's card and the screen shows the name the database holds, to compare with the card. `found` is false and `kind` is `unknown` for a card nobody registered.
+
+```json
+{
+  "found": true,
+  "kind": "cadet",
+  "name": "Alpha, Avery",
+  "role": "cadet"
+}
+```
+
+Register a person: POST /v0/admin/register, role admin. Body `edipi`, `first_name`, `last_name`, `role` (`grader`, `oic`, `instructor` or `cadet`). A cadet goes in the cadet table, everyone else in the staff table. A second registration of the same card is 409 `invalid_transition`. Each registration is one audit entry.
+
+```json
+{
+  "registered": true,
+  "name": "Alpha, Avery",
+  "role": "cadet"
+}
+```
+
+List the people: GET /v0/admin/people, role admin. Names and roles only.
+
+```json
+{
+  "count": 2,
+  "people": [
+    {
+      "name": "Nebesky, Alena",
+      "kind": "staff",
+      "role": "oic",
+      "active": true
+    },
+    {
+      "name": "Alpha, Avery",
+      "kind": "cadet",
+      "role": "cadet",
+      "active": true
+    }
+  ]
+}
+```
+
+Limit, stated plainly: a scan identifies a person but does not prove it is them. Anyone holding a photo of a card barcode could present it. Real proof needs the card's chip and a reader, which is not built.
 
 ## 6. Signing at the score compiler
 
@@ -861,6 +935,7 @@ Arms room, receipts, export to AMS, offline buffering and resync, user and cadet
 1a. For Arjo (schema v1, L29): should the Vault store `age_group` and `scoring_column` on the event, and `total_points` and `result`? Storing them once at open event would stop a grader sending a different context on each component and would put the context in the audit entry. v1 sends them on each component so the Gatekeeper needs no schema change today.
 1b. For Rhemmy (form, L29): the form selects age group and column once per cadet, sends them with every component, shows `grading.total_points` and `grading.result` after submit, shows the `confirmed` label, and has an error screen for 400 naming the field.
 1c. For Rhemmy (results view, Demo 3): call GET /v0/results with the signed-in person's token. Show every row to a grader or OIC. Show a cadet only what the server returns (it is already limited to their own). Do not filter on the page and do not send a cadet id.
+1d. Sign-in by CAC scan is built (section 5D). Open for the team: it identifies but does not authenticate (see the limit in 5D), and the Vault gives a person one role, so no one can be both grader and instructor yet (Arjo).
 2. Role mechanism: done for the six live writes in 2.1 (bearer token, role read from the Vault). Still open: how staff get a token (CAC sign in), and moving the canned endpoints to the same check as they go live.
 3. Rhemmy's L24 card says Edge parses the barcode and hashes the ID. The README and the Vault say Gatekeeper does, with a key Edge must never hold. The card text should change to match this contract.
 4. Time format: settled as `m:ss` (the official tables write `1:29`). The Vault schema comment that shows "01:45" should be updated to match.

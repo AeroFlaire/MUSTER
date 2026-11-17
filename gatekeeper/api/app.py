@@ -109,6 +109,15 @@ def check_field(field, kind, value):
     elif kind == "att_status":
         if value not in ("PRESENT", "LATE", "ABSENT", "EXCUSED"):
             return validation_error(field, "must be PRESENT, LATE, ABSENT or EXCUSED")
+    elif kind == "edipi":
+        if not isinstance(value, str) or not re.match(r"^\d{10}$", value.strip()):
+            return validation_error(field, "must be 10 digits")
+    elif kind == "position":
+        if value not in ("grader", "cadet"):
+            return validation_error(field, "must be 'grader' or 'cadet'")
+    elif kind == "person_role":
+        if value not in ("grader", "oic", "instructor", "cadet"):
+            return validation_error(field, "must be grader, oic, instructor or cadet")
     elif kind == "forbidden":
         return validation_error(field, "is worked out by the Gatekeeper from the scoring tables, "
                                        "do not send it")
@@ -119,6 +128,9 @@ def validate_body(spec):
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return validation_error("body", "must be a JSON object")
+    who = [f for f in ("barcode", "edipi", "cadet_id") if f in spec]
+    if len(who) > 1 and len([f for f in who if f in body]) != 1:  # who is this person? exactly one way
+        return validation_error("barcode", "send exactly one of " + ", ".join(who))
     for field, (kind, required) in spec.items():
         if field not in body:
             if required:
@@ -145,7 +157,8 @@ ROUTES = [
      None, None),
     ("POST", "/v0/sessions/<int:session_id>/close", OIC, 200, "session_closed", None, "any", None),
     ("POST", "/v0/sessions/<int:session_id>/events", GRADER, 201, "aft_event_entered",
-     {"barcode": ("str", True), "client_ref": ("str", False)}, "AFT", None),
+     {"barcode": ("str", False), "edipi": ("edipi", False), "client_ref": ("str", False)},
+     "AFT", None),
     ("POST", "/v0/events/<int:event_id>/components", GRADER, 200, "component",
      {"component": ("component", True), "raw_value": ("str", True),
       "age_group": ("age_group", True), "scoring_column": ("column", True),
@@ -169,9 +182,19 @@ ROUTES = [
     # their own hashed ID) sees only their own. The stub has no cadet identity, so it lists the
     # staff roles.
     ("GET", "/v0/results", GRADER, 200, "results", None, None, None),
+    # CAC sign-in and the people database (the scanner page sends the parsed DoD ID over HTTPS;
+    # the Gatekeeper hashes it). Sign-in needs no token because it is how you get one.
+    ("POST", "/v0/auth/cac-signin", None, 200, "cac_signin",
+     {"edipi": ("edipi", True), "position": ("position", True)}, None, None),
+    ("POST", "/v0/identity/lookup", GRADER, 200, "identity_lookup",
+     {"edipi": ("edipi", True)}, None, None),
+    ("POST", "/v0/admin/register", {"admin"}, 201, "register_person",
+     {"edipi": ("edipi", True), "first_name": ("str", True), "last_name": ("str", True),
+      "role": ("person_role", True)}, None, None),
+    ("GET", "/v0/admin/people", {"admin"}, 200, "people", None, None, None),
     ("POST", "/v0/sessions/<int:session_id>/ioct/pair", GRADER, 201, "ioct_event_paired",
-     {"barcode": ("str", True), "tag_uid": ("str", True), "client_ref": ("str", False)},
-     "IOCT", None),
+     {"barcode": ("str", False), "edipi": ("edipi", False), "tag_uid": ("str", True),
+      "client_ref": ("str", False)}, "IOCT", None),
     ("POST", "/v0/sessions/<int:session_id>/gate-reads", {"gate_station", "oic"}, 201, "gate_read",
      {"tag_uid": ("str", True), "gate": ("gate", True), "read_at_ms": ("int", True),
       "gate_device": ("str", True), "client_ref": ("str", False)}, "any", None),
@@ -180,8 +203,10 @@ ROUTES = [
     ("GET", "/v0/sessions/<int:session_id>/ioct/tags/<tag_uid>/event", STATION, 200, "tag_event",
      None, "IOCT", None),
     ("POST", "/v0/attendance/marks", {"instructor"}, 201, "attendance_mark",
-     {"section_id": ("int", True), "class_date": ("date", True), "barcode": ("str", True),
-      "status": ("att_status", False), "client_ref": ("str", False)}, None, None),
+     {"section_id": ("int", True), "class_date": ("date", True), "barcode": ("str", False),
+      "edipi": ("edipi", False), "cadet_id": ("int", False), "status": ("att_status", False),
+      "client_ref": ("str", False)},
+     None, None),
     ("GET", "/v0/attendance/sections/<int:section_id>/roster", {"instructor"}, 200,
      "attendance_roster", None, None, None),
     ("GET", "/v0/audit/verify", OIC, 200, "audit_verify", None, None, None),

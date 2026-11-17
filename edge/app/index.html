@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>MUSTER</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header id="top">
+  <button class="brand" id="homeBtn" aria-label="Back to the start screen">MUSTER</button>
+  <div id="whoami" class="whoami" hidden><span id="whoText"></span><button class="btn ghost small" id="signout">Sign out</button></div>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section class="view" id="v-home">
+    <div class="hero">
+      <h1>What are we recording?</h1>
+      <p>Scan a CAC to sign in. Scores are worked out by the system and saved with an audit trail.</p>
+    </div>
+    <div class="tiles">
+      <button class="tile" data-test="AFT">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 40h48M14 40V28m36 12V28M10 34h6m32 0h6M22 24l10-8 10 8" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="tile-title">AFT</span><span class="tile-sub">Army Fitness Test: five events</span>
+      </button>
+      <button class="tile" data-test="IOCT">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="36" r="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M32 36V24M26 10h12M32 10v6" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        <span class="tile-title">IOCT</span><span class="tile-sub">Obstacle course, timed at the gates</span>
+      </button>
+      <button class="tile soon" id="tileAtt">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="14" y="10" width="36" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="4"/><path d="M22 28l5 5 10-11M22 44h20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="tile-title">Attendance</span><span class="tile-sub">Coming soon</span>
+      </button>
+    </div>
+    <p class="foot"><button class="linkbtn" id="toRegister">Admin: register people</button></p>
+  </section>
+
+  <!-- POSITION -->
+  <section class="view" id="v-position" hidden>
+    <div class="hero"><h1 id="posTitle">Army Fitness Test</h1><p>Who are you?</p></div>
+    <div class="tiles two">
+      <button class="tile" data-position="grader">
+        <span class="tile-title">Grader or OIC</span><span class="tile-sub">I am recording scores</span></button>
+      <button class="tile" data-position="cadet">
+        <span class="tile-title">Cadet</span><span class="tile-sub">I want to see my scores</span></button>
+    </div>
+    <p class="foot"><button class="linkbtn" data-back="home">Back</button></p>
+  </section>
+
+  <!-- SIGN IN -->
+  <section class="view" id="v-signin" hidden>
+    <div class="card">
+      <h2 id="signinTitle">Sign in</h2>
+      <p class="sub">Scan your own CAC. The system checks that this card is registered for the position you chose.</p>
+      <div id="scan-signin"></div>
+      <div id="signinOut" class="banner" role="status" aria-live="polite"></div>
+      <p><button class="linkbtn" data-back="position">Back</button></p>
+    </div>
+  </section>
+
+  <!-- GRADER -->
+  <section class="view" id="v-grader" hidden>
+    <nav class="tabs" id="gTabs">
+      <button class="on" data-gtab="record">Record</button>
+      <button data-gtab="results">All results</button>
+    </nav>
+
+    <div class="card" id="g-record">
+      <h2 id="recTitle">Record</h2>
+      <fieldset id="st1" class="step">
+        <legend>Step 1. Sex</legend>
+        <p class="hint">This picks the scoring column.</p>
+        <div class="choice"><label><input type="radio" name="sex" value="male"> Male</label>
+        <label><input type="radio" name="sex" value="female"> Female</label></div>
+      </fieldset>
+      <fieldset id="st2" class="step" disabled>
+        <legend>Step 2. Age group</legend>
+        <select id="age"></select>
+      </fieldset>
+      <fieldset id="st3" class="step" disabled>
+        <legend>Step 3. Scan the cadet's CAC</legend>
+        <div id="scan-cadet"></div>
+        <div id="verify" class="verify" hidden></div>
+      </fieldset>
+      <fieldset id="st4" class="step" disabled>
+        <legend>Step 4. Results</legend>
+        <div id="aftBox" class="grid">
+          <label>Deadlift (lbs)<input id="MDL" inputmode="numeric" autocomplete="off"></label>
+          <label>Hand-release push-ups (reps)<input id="HRP" inputmode="numeric" autocomplete="off"></label>
+          <label>Sprint-drag-carry (m:ss)<input id="SDC" placeholder="1:30" autocomplete="off"></label>
+          <label>Plank (m:ss)<input id="PLK" placeholder="3:40" autocomplete="off"></label>
+          <label>2-mile run (m:ss)<input id="2MR" placeholder="13:15" autocomplete="off"></label>
+        </div>
+        <div id="ioctBox" class="grid" hidden>
+          <label>Wristband<select id="tag"><option>TAG-017</option><option>TAG-018</option><option>TAG-019</option></select></label>
+          <label>Run time for the demo gate (m:ss)<input id="runtime" placeholder="2:35" autocomplete="off"></label>
+          <p class="hint wide">The real RFID gate is hardware. Here a demo gate posts the START and END reads, and the Vault works out the time.</p>
+        </div>
+        <button class="btn" id="score">Score it</button>
+      </fieldset>
+      <div id="gradeOut" class="banner" role="status" aria-live="polite"></div>
+      <div id="gradeTable"></div>
+      <button class="btn ghost" id="nextCadet" hidden>Next cadet</button>
+    </div>
+
+    <div class="card" id="g-results" hidden>
+      <h2>All results</h2>
+      <p class="sub">Graders and the OIC see every score. The server decides this, not the page.</p>
+      <div class="grid">
+        <label>IOCT grade shown for<select id="rsex"><option value="male">Men (M|C column)</option><option value="female">Women (F column)</option></select></label>
+      </div>
+      <button class="btn" id="refreshAll">Load results</button>
+      <div id="resOut" class="banner" role="status" aria-live="polite"></div>
+      <div id="resTable"></div>
+    </div>
+  </section>
+
+  <!-- CADET -->
+  <section class="view" id="v-cadet" hidden>
+    <div class="card">
+      <h2 id="cadetTitle">Your scores</h2>
+      <p class="sub">View only. You can see your own scores and nobody else's.</p>
+      <button class="btn" id="refreshOwn">Refresh</button>
+      <div id="ownOut" class="banner" role="status" aria-live="polite"></div>
+      <div id="ownTable"></div>
+    </div>
+  </section>
+
+  <!-- ATTENDANCE (placeholder) -->
+  <section class="view" id="v-attendance" hidden>
+    <div class="card"><h2>Attendance</h2>
+      <p class="sub">Coming soon. Scan a CAC and the cadet is marked present. The service behind it is already built.</p>
+      <p><button class="linkbtn" data-back="home">Back</button></p></div>
+  </section>
+
+  <!-- REGISTER -->
+  <section class="view" id="v-register" hidden>
+    <div class="card">
+      <h2>Register people</h2>
+      <p class="sub">Admin only. Each person scans their own CAC once and is added with a role. Only the name and a keyed hash of the ID are stored, never the ID itself.</p>
+      <div id="adminKeyBox" hidden><label>Admin token<input id="adminKey" type="password" autocomplete="off" placeholder="printed when the server started"></label></div>
+      <div id="scan-register"></div>
+      <div id="regForm" class="verify" hidden>
+        <div class="grid">
+          <label>First name<input id="regFirst" autocomplete="off"></label>
+          <label>Last name<input id="regLast" autocomplete="off"></label>
+        </div>
+        <p class="hint">Check the name against the card. Fix it here if the scanner split it wrongly (for example a first name with a space).</p>
+        <div class="choice" id="regRole">
+          <label><input type="radio" name="role" value="grader"> Grader</label>
+          <label><input type="radio" name="role" value="oic"> OIC</label>
+          <label><input type="radio" name="role" value="cadet"> Cadet</label>
+        </div>
+        <button class="btn" id="regGo">Register</button>
+      </div>
+      <div id="regOut" class="banner" role="status" aria-live="polite"></div>
+      <h3>Registered so far</h3>
+      <div id="people"></div>
+      <p><button class="linkbtn" data-back="home">Back</button></p>
+    </div>
+  </section>
+</main>
+
+<details class="hood"><summary>Under the hood: every request this page made (no IDs, no bodies)</summary><pre id="log">(nothing yet)</pre></details>
+
+<script src="demo_tokens.js"></script>
+<script src="/scanner/cac_parse.js"></script>
+<script src="/scanner/vendor/zxing-wasm-3.1.5/zxing-reader.iife.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

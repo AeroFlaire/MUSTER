@@ -80,3 +80,7 @@ docs/interfaces/demo_tokens.js
 # Phone scanner: self-signed certificate made by edge/scanner/serve.py
 edge/scanner/.cert/
 test_front_cards.pdf
+
+# App mode: secret keys and the local database with real names (local only, never commit)
+gatekeeper/api/.app_keys
+gatekeeper/api/muster_app.db

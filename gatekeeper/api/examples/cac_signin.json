@@ -1,0 +1,7 @@
+{
+  "token": "example-session-token-shown-once",
+  "role": "grader",
+  "position": "grader",
+  "name": "Basu, Example",
+  "expires_in_s": 14400
+}
