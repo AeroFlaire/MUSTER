@@ -79,6 +79,7 @@ Role sets, copied from the Vault: GRADER = grader, oic. STATION = compiler_stati
 | GET /v0/sessions/{session_id}/ioct/tags/{tag_uid}/event | compiler_station, oic | ioct.active_event_for_tag |
 | POST /v0/attendance/marks | instructor | attendance.mark (own section only) |
 | GET /v0/attendance/sections/{section_id}/roster?class_date= | instructor | attendance.roster (own section only) |
+| GET /v0/results?test_type=&session_id= | grader, oic (all scores); a cadet token (own scores only) | read only: fitness.scorecard for each event |
 | GET /v0/audit/verify | oic, admin | audit.verify |
 | GET /v0/audit/head | oic, admin | audit.head |
 | GET /v0/audit/history?entity_type=&entity_id= | oic, admin | audit.entries_for |
@@ -565,6 +566,117 @@ GET /v0/attendance/sections/{section_id}/roster?class_date=YYYY-MM-DD, role inst
 
 Refused writes (SR-2): a mark for a section that belongs to another instructor, or for a cadet who is not enrolled in that section, returns 403 `forbidden_role` and writes exactly 1 `ATTENDANCE_REJECTED` audit entry (section, date and reason only, no barcode, no ID, no cadet hash) and 0 attendance rows. A roster read for another instructor's section is refused and logged the same way. Every other role is refused at the Gatekeeper with 403 before anything reaches the Vault.
 
+## 5C. Reading results by role (Demo 3, live, read only)
+
+GET /v0/results, optional query `test_type` (AFT or IOCT) and `session_id`. Nothing is written.
+
+- grader and oic: every score. `scope` is `all`.
+- a cadet token tied to that cadet's hashed ID: only that cadet's own scores. `scope` is `own`. The caller never names a cadet, so there is no parameter a cadet could change to see someone else's. The filters only narrow within their own scores.
+- a cadet credential that is not tied to a cadet record, or any other role (admin, instructor, compiler_station, gate_station, arms_nco): 403 `forbidden_role`.
+- no token or a bad token: 401 `unauthenticated`.
+
+Each result is the same view the write endpoints return (status, scorecard, and the `grading` block with the total and pass or fail for AFT, or the points and grade for IOCT). The cadet's ID hash is left out of every result. A cadet also sees events that are still ENTERED or SUPERSEDED, with their `status` shown, so the front end should label drafts. The stub has no cadet identity, so it only answers the staff roles.
+
+```json
+{
+  "scope": "all",
+  "count": 2,
+  "results": [
+    {
+      "event_id": 11,
+      "status": "SUBMITTED",
+      "scorecard": {
+        "event_id": 11,
+        "test_type": "AFT",
+        "session_id": 7,
+        "session_date": "2026-10-22",
+        "location": "Test Gym",
+        "cadet_name": "Alpha, Cadet",
+        "grader_id": 3,
+        "supersedes_event_id": null,
+        "components": [
+          {
+            "component": "2MR",
+            "raw_value": "13:15",
+            "points": 100
+          },
+          {
+            "component": "HRP",
+            "raw_value": "60",
+            "points": 100
+          },
+          {
+            "component": "MDL",
+            "raw_value": "340",
+            "points": 100
+          },
+          {
+            "component": "PLK",
+            "raw_value": "3:40",
+            "points": 100
+          },
+          {
+            "component": "SDC",
+            "raw_value": "1:30",
+            "points": 100
+          }
+        ],
+        "total_points": 500
+      },
+      "grading": {
+        "total_points": 500,
+        "result": "PASS",
+        "failed_events": [],
+        "min_points_per_event": 60,
+        "standards_status": "confirmed"
+      }
+    },
+    {
+      "event_id": 12,
+      "status": "SUBMITTED",
+      "scorecard": {
+        "event_id": 12,
+        "test_type": "IOCT",
+        "session_id": 8,
+        "session_date": "2026-10-22",
+        "location": "Test Gym",
+        "cadet_name": "Alpha, Cadet",
+        "grader_id": 3,
+        "supersedes_event_id": null,
+        "ioct": {
+          "tag_uid": "TAG-017",
+          "start_read_at_ms": 1792674000000,
+          "end_read_at_ms": 1792674155000,
+          "elapsed_ms": 155000,
+          "elapsed": "2:35.00"
+        }
+      },
+      "grading": {
+        "elapsed_ms": 155000,
+        "elapsed": "2:35.00",
+        "pass_rule": "D (5 points) or better",
+        "tab_rule": "A- (40 points) or better",
+        "by_column": {
+          "M|C": {
+            "points": 40,
+            "grade": "A-",
+            "result": "PASS",
+            "tab": true
+          },
+          "F": {
+            "points": 50,
+            "grade": "A+",
+            "result": "PASS",
+            "tab": true
+          }
+        },
+        "standards_status": "dpe_grade_scale"
+      }
+    }
+  ]
+}
+```
+
 ## 6. Signing at the score compiler
 
 The cadet signs the exact scorecard with their CAC. MUSTER never sees the PIN. The signature is checked against the public key recorded at enrollment, so no live DoD PKI lookup is needed. The signed bytes include a one-time nonce and the purpose (`FITNESS_ACCEPT`), so a signature cannot be replayed or reused for another purpose.
@@ -748,6 +860,7 @@ Arms room, receipts, export to AMS, offline buffering and resync, user and cadet
 1. Scoring (v1 position, needs the team's yes): the system computes points from the official tables (done in this version). Settled 17-Nov: the AFT pass rule is 60 points on every event, men use the M|C column and all women use F, and the IOCT grade scale (pass at D, TAB at A- or better) is entered from the DPE slide. Still open: where each cadet's age group comes from (the grader chooses it for now) and a typed manual IOCT time.
 1a. For Arjo (schema v1, L29): should the Vault store `age_group` and `scoring_column` on the event, and `total_points` and `result`? Storing them once at open event would stop a grader sending a different context on each component and would put the context in the audit entry. v1 sends them on each component so the Gatekeeper needs no schema change today.
 1b. For Rhemmy (form, L29): the form selects age group and column once per cadet, sends them with every component, shows `grading.total_points` and `grading.result` after submit, shows the `confirmed` label, and has an error screen for 400 naming the field.
+1c. For Rhemmy (results view, Demo 3): call GET /v0/results with the signed-in person's token. Show every row to a grader or OIC. Show a cadet only what the server returns (it is already limited to their own). Do not filter on the page and do not send a cadet id.
 2. Role mechanism: done for the six live writes in 2.1 (bearer token, role read from the Vault). Still open: how staff get a token (CAC sign in), and moving the canned endpoints to the same check as they go live.
 3. Rhemmy's L24 card says Edge parses the barcode and hashes the ID. The README and the Vault say Gatekeeper does, with a key Edge must never hold. The card text should change to match this contract.
 4. Time format: settled as `m:ss` (the official tables write `1:29`). The Vault schema comment that shows "01:45" should be updated to match.

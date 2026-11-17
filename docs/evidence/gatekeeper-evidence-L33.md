@@ -17,6 +17,8 @@ Owner: Alena. One piece of evidence per API acceptance criterion. Every command 
 | PBI-09 | Another instructor's section: 403 and 1 rejected-attempt audit entry (3 of 3) | `test_another_instructors_section_is_blocked_and_logged_3_of_3`, Test 2 results rows 1 to 3 | Done. Screen message is Edge's part |
 | PBI-09 | Cadet not on the roster rejected (3 of 3) | `test_cadet_not_on_the_roster_is_rejected_and_logged_3_of_3`, Test 2 rows 4 to 6 | Done |
 | PBI-09 | 0 raw barcodes or DoD IDs in attendance tables and logs | `test_vault_holds_no_raw_barcode_or_id` | Done |
+| PBI-10 | Role test: grader can update but cannot change the original, OIC corrects only by supersede, cadet can only view (advisor meeting 17-Nov) | `tests/test_role_permissions.py` (13 tests): refused attempts change 0 rows and add 0 audit entries, the audit chain still verifies | Done |
+| PBI-08 | Results view by role (Demo 3): grader and OIC see all scores, a cadet sees only their own, no ID hash in any response | `GET /v0/results`, `test_grader_and_oic_see_every_score`, `test_a_cadet_sees_only_their_own_scores`, `test_results_never_contain_an_id_hash_or_a_raw_barcode`, demo scene 6 | Done on the API. The web page is Rhemmy's |
 | PBI-10 | Role checks on every write | `tests/test_role_check.py` (15 tests), demo scene 2 (42 attempts, 0 records) | Done |
 | Contract | Contract v1 matches the running API | `tests/test_stub_api.py` (21 tests; every example and every route is in `docs/interfaces/api-contract-v1.md`) | Done |
 

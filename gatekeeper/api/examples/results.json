@@ -1,0 +1,97 @@
+{
+  "scope": "all",
+  "count": 2,
+  "results": [
+    {
+      "event_id": 11,
+      "status": "SUBMITTED",
+      "scorecard": {
+        "event_id": 11,
+        "test_type": "AFT",
+        "session_id": 7,
+        "session_date": "2026-10-22",
+        "location": "Test Gym",
+        "cadet_name": "Alpha, Cadet",
+        "grader_id": 3,
+        "supersedes_event_id": null,
+        "components": [
+          {
+            "component": "2MR",
+            "raw_value": "13:15",
+            "points": 100
+          },
+          {
+            "component": "HRP",
+            "raw_value": "60",
+            "points": 100
+          },
+          {
+            "component": "MDL",
+            "raw_value": "340",
+            "points": 100
+          },
+          {
+            "component": "PLK",
+            "raw_value": "3:40",
+            "points": 100
+          },
+          {
+            "component": "SDC",
+            "raw_value": "1:30",
+            "points": 100
+          }
+        ],
+        "total_points": 500
+      },
+      "grading": {
+        "total_points": 500,
+        "result": "PASS",
+        "failed_events": [],
+        "min_points_per_event": 60,
+        "standards_status": "confirmed"
+      }
+    },
+    {
+      "event_id": 12,
+      "status": "SUBMITTED",
+      "scorecard": {
+        "event_id": 12,
+        "test_type": "IOCT",
+        "session_id": 8,
+        "session_date": "2026-10-22",
+        "location": "Test Gym",
+        "cadet_name": "Alpha, Cadet",
+        "grader_id": 3,
+        "supersedes_event_id": null,
+        "ioct": {
+          "tag_uid": "TAG-017",
+          "start_read_at_ms": 1792674000000,
+          "end_read_at_ms": 1792674155000,
+          "elapsed_ms": 155000,
+          "elapsed": "2:35.00"
+        }
+      },
+      "grading": {
+        "elapsed_ms": 155000,
+        "elapsed": "2:35.00",
+        "pass_rule": "D (5 points) or better",
+        "tab_rule": "A- (40 points) or better",
+        "by_column": {
+          "M|C": {
+            "points": 40,
+            "grade": "A-",
+            "result": "PASS",
+            "tab": true
+          },
+          "F": {
+            "points": 50,
+            "grade": "A+",
+            "result": "PASS",
+            "tab": true
+          }
+        },
+        "standards_status": "dpe_grade_scale"
+      }
+    }
+  ]
+}

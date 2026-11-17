@@ -106,7 +106,7 @@ Leave it running. Open `docs\interfaces\live_demo.html` in your browser. Pick an
 
 # Sprint 2 additions (L33 review, 19 Nov)
 
-`python demo_full_run.py --pause` now has six scenes. Scene 5 is new:
+`python demo_full_run.py --pause` now has seven scenes. Scene 5 (attendance) and scene 6 (who sees which scores) are new:
 
 | Claim | Where it shows | Criterion |
 |---|---|---|
@@ -114,7 +114,9 @@ Leave it running. Open `docs\interfaces\live_demo.html` in your browser. Pick an
 | Another instructor's section is refused and logged | Scene 5: 3 attempts, each 403, each 1 rejected-attempt audit entry, 0 records | PBI-09 criterion 2 |
 | A cadet not on the roster is refused | Scene 5: 3 attempts, 403 | PBI-09 criterion 3 |
 | 0 raw barcodes or IDs stored | `test_vault_holds_no_raw_barcode_or_id` in `tests/test_live_attendance.py` | PBI-09 criterion 4 |
-| Tamper is caught | Scene 6 (was scene 5) | PBI-10 |
+| Grader and OIC see all scores, a cadet sees only their own | Scene 6: grader 4 scores, OIC 4 scores, each cadet 1 name only | Demo 3 |
+| A cadet cannot write, a grader cannot supersede | Scene 6: both 403, 0 audit entries added | Role test |
+| Tamper is caught | Scene 7 (was scene 5) | PBI-10 |
 
 API steps to say out loud (about 40 seconds):
 
@@ -122,7 +124,8 @@ API steps to say out loud (about 40 seconds):
 2. "Scene 2: every access level against every write. 42 attempts, 0 records, and a faked role header is refused."
 3. "Scene 3: gate reads come in, the Vault computes the time, and the run is graded with the DPE grade scale: points, letter grade, PASS or FAIL, and TAB for A- or better."
 4. "Scene 5: Instructor A marks their section. Instructor B tries A's section and strangers, gets 403 every time, and each refusal is written to the audit log."
-5. "Scene 6: the audit chain verifies, one entry is edited, and the verifier names it."
+5. "Scene 6: the grader and the OIC see every score. Each cadet token sees only that cadet's own. A cadet cannot write, and a grader cannot correct a score."
+6. "Scene 7: the audit chain verifies, one entry is edited, and the verifier names it."
 
 Then run `python run_security_tests.py` and show `docs/evidence/gatekeeper-tests-1-2-results.md`.
 

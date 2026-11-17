@@ -220,3 +220,30 @@ def attendance_roster(conn, actor_id, section_id, class_date):
         raise PermissionDenied("only this section's instructor can view the roster")
     return {"section_id": section_id, "class_date": class_date,
             "roster": attendance.roster(conn, section_id, class_date)}
+
+
+# ---- results read (Demo 3, PBI-08) -------------------------------------------
+# Read only: nothing here writes to the Vault. Staff roles that may grade (grader, oic) see every
+# score. A cadet sees only the scores that belong to the hash on their own credential. The
+# caller never names a cadet, so there is no parameter a cadet could change to see another's.
+# The cadet's ID hash is left out of the response for everyone.
+
+def results(conn, cadet_hash=None, test_type=None, session_id=None):
+    sql = ("SELECT e.id FROM fitness_event e JOIN cadet c ON c.id = e.cadet_id WHERE 1 = 1")
+    params = []
+    if cadet_hash is not None:
+        sql += " AND c.edipi_hash = ?"
+        params.append(cadet_hash)
+    if test_type is not None:
+        sql += " AND e.test_type = ?"
+        params.append(test_type)
+    if session_id is not None:
+        sql += " AND e.session_id = ?"
+        params.append(session_id)
+    out = []
+    for row in conn.execute(sql + " ORDER BY e.id", params).fetchall():
+        view = _view(conn, row["id"])
+        view["scorecard"].pop("cadet_edipi_hash", None)
+        out.append(view)
+    return {"scope": "own" if cadet_hash is not None else "all", "count": len(out),
+            "results": out}

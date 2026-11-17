@@ -8,6 +8,7 @@ Live endpoints (they write to the Vault):
   POST /v0/sessions/{id}/events        open an AFT scorecard   (record + audit entry)
   POST /v0/events/{id}/components      enter one AFT component (record + audit entry)
   POST /v0/events/{id}/submit          send the scorecard on   (status change + audit entry)
+  GET  /v0/results                     read scores: grader and OIC see all, a cadet sees only theirs
 
 Who may call them (auth.py): `Authorization: Bearer <token>`. The role is read from the
 Vault's own user record, never from the request. The X-Role header is ignored here.
@@ -131,6 +132,50 @@ def live_view(app, name, ok_status, roles, body_spec):
     return view
 
 
+def results_view(app):
+    """GET /v0/results. Grader and OIC: every score. A cadet token tied to a cadet's hashed ID:
+    only that cadet's own scores. Read only. Anyone else: 403."""
+    def view():
+        principal = auth.authenticate(request.headers, app.config["CREDENTIALS"])
+        if principal is None:
+            return stub.error(401, "unauthenticated", "Missing or invalid credentials.")
+        conn = None
+        try:
+            conn = bridge.connect(app.config["MUSTER_DB"])
+            if principal.actor_id is None:
+                if not principal.cadet_hash:
+                    return stub.error(403, "forbidden_role",
+                                      "This credential is not linked to a cadet record.")
+                only_hash = principal.cadet_hash
+            else:
+                role = bridge.role_of(conn, principal.actor_id)
+                if role is None:
+                    return stub.error(403, "forbidden_role",
+                                      "This account is inactive or unknown.")
+                if role not in stub.GRADER:
+                    return stub.error(403, "forbidden_role",
+                                      f"Role '{role}' may not call this endpoint.")
+                only_hash = None
+            test_type = request.args.get("test_type")
+            if test_type is not None and test_type not in ("AFT", "IOCT"):
+                return stub.validation_error("test_type", "must be 'AFT' or 'IOCT' (query parameter)")
+            sid = request.args.get("session_id")
+            if sid is not None and not sid.isdigit():
+                return stub.validation_error("session_id", "must be an integer (query parameter)")
+            return jsonify(bridge.results(conn, only_hash, test_type,
+                                          int(sid) if sid is not None else None)), 200
+        except Exception as exc:  # noqa: BLE001
+            status, code, message = bridge.map_error(exc)
+            if status == 500:
+                app.logger.exception("Vault read failed (details above; no request data logged)")
+            return stub.error(status, code, message)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    return view
+
+
 def create_live_app(db_path, credentials):
     """`credentials` is an auth.CredentialStore (or a path to a saved one)."""
     app = stub.create_app()
@@ -144,6 +189,8 @@ def create_live_app(db_path, credentials):
         if key in LIVE:
             name, ok_status = LIVE[key]
             app.view_functions[key] = live_view(app, name, ok_status, roles, body_spec)
+        elif key == "GET /v0/results":
+            app.view_functions[key] = results_view(app)
 
     return app
 
@@ -195,11 +242,25 @@ def seed_demo(db_path, pack_path):
     return session, users
 
 
-def issue_demo_credentials(users):
-    """One token per demo user, plus a cadet token (no Vault user). Returns (store, tokens)."""
+def demo_cadet_hashes(pack_path, n=2):
+    """Keyed ID hashes of the first n synthetic cadets (needs MUSTER_EDIPI_KEY)."""
+    from muster_vault import identity
+
+    key = identity.load_edipi_key()
+    pack = json.loads(Path(pack_path).read_text(encoding="utf-8"))
+    return [identity.hash_edipi(c["edipi"], key) for c in pack["cadets"][:n]]
+
+
+def issue_demo_credentials(users, cadet_hashes=()):
+    """One token per demo user, plus cadet tokens (no Vault user). `cadet` is tied to the first
+    hash and `cadet_2` to the second, so each can read only their own results. With no hashes,
+    `cadet` is a cadet credential linked to nobody. Returns (store, tokens)."""
     store = auth.CredentialStore()
     tokens = {role: store.issue(f"demo {role}", uid) for role, uid in users.items()}
-    tokens["cadet"] = store.issue("demo cadet", None)
+    hashes = list(cadet_hashes)
+    tokens["cadet"] = store.issue("demo cadet", None, hashes[0] if hashes else None)
+    if len(hashes) > 1:
+        tokens["cadet_2"] = store.issue("demo cadet 2", None, hashes[1])
     return store, tokens
 
 
@@ -209,7 +270,7 @@ if __name__ == "__main__":
     pack = Path(__file__).resolve().parents[2] / "tests" / "synthetic_test_pack.json"
     if "--reset" in sys.argv or not db.exists() or not creds_path.exists():
         sid, users = seed_demo(db, pack)
-        store, tokens = issue_demo_credentials(users)
+        store, tokens = issue_demo_credentials(users, demo_cadet_hashes(pack))
         store.save(creds_path)  # hashes only
         print(f"Built demo database {db} (AFT session {sid}, 10 synthetic cadets).")
         print("Demo tokens (shown once, not saved anywhere; paste one into Edge):")

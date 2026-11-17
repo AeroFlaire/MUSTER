@@ -165,6 +165,10 @@ ROUTES = [
      {"reason": ("str", True)}, None, "any"),
     ("GET", "/v0/events/<int:event_id>", GRADER | STATION | OIC, 200, event_card, None, None, "any"),
     ("GET", "/v0/events/<int:event_id>/verify", OIC, 200, "event_verify", None, None, "any"),
+    # Who may read: grader and oic see all scores; a cadet (live mode only, a cadet token tied to
+    # their own hashed ID) sees only their own. The stub has no cadet identity, so it lists the
+    # staff roles.
+    ("GET", "/v0/results", GRADER, 200, "results", None, None, None),
     ("POST", "/v0/sessions/<int:session_id>/ioct/pair", GRADER, 201, "ioct_event_paired",
      {"barcode": ("str", True), "tag_uid": ("str", True), "client_ref": ("str", False)},
      "IOCT", None),

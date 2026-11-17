@@ -109,6 +109,7 @@ does both in one transaction), and only a caller with the right role can make th
 | POST /v0/events/{id}/supersede | old event marked SUPERSEDED, a new event that points at it (`supersedes_event_id`) + audit entries | oic, admin |
 | POST /v0/attendance/marks | one `attendance` row + one `ATTENDANCE_MARKED` audit entry. A refused write (another instructor's section, or a cadet not on the roster) writes 0 rows and one `ATTENDANCE_REJECTED` entry | instructor (own section only) |
 | GET /v0/attendance/sections/{id}/roster?class_date= | none | instructor (own section only) |
+| GET /v0/results?test_type=&session_id= | none (read only) | grader and oic see every score; a cadet token tied to a cadet sees only that cadet's scores |
 
 Every other endpoint (signing, dispute, reads, audit) still returns its canned example and still reads `X-Role`.
 
@@ -173,6 +174,8 @@ format only), and staff do not yet get tokens by signing in with a CAC. Tests:
 * A computed IOCT run carries a `grading` block built from the DPE IOCT grade scale (`data/ioct_standard.json`, from the DPE slide). It gives points, letter grade, PASS or FAIL and TAB for both columns (`by_column`: `M|C` = men, `F` = women), because the Vault does not store gender. The web app, which asks for gender first, shows its column. Pass is a D (5 points) or better. A- (40 points) or better is a TAB, which never has to be retaken. The slide prints whole seconds, so the gate time is cut down to the whole second before the lookup (confirm this with the DPE). The time itself is never changed by grading.
 * Corrections never overwrite: `supersede` keeps the old event and opens a new one that points at it. Both corrections are OIC only.
 * Attendance: the Vault enforces own-section and on-the-roster. The Gatekeeper adds the rejected-attempt audit entry (a refused Vault write rolls back, so on its own it would leave no trace). The entry holds the section, date and reason only.
+* Reading scores (Demo 3): `GET /v0/results`. Grader and OIC see every score. A cadet token carries that cadet's hashed ID, so the cadet sees only their own scores and the caller never names a cadet. Demo tokens `cadet` (Alpha) and `cadet_2` (Bravo) are printed by `live_app.py --reset`. Results never include an ID hash.
+* Who may change what (`tests/test_role_permissions.py`): a grader can re-enter results until submit, then the score is locked to them. Only the OIC corrects, and a SIGNED score only through supersede (a new event pointing at the original). A cadet can only view.
 * Demo accounts: `instructor` owns section 1 (all ten cadets), `instructor_b` owns section 2 (only the first cadet).
 
 ## Security Tests 1 and 2

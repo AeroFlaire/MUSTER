@@ -39,7 +39,7 @@ os.system("")  # lets Windows terminals show colors
 
 import vault_bridge as bridge  # noqa: E402  (also puts the Vault on sys.path)
 from live_app import (DEMO_AFT_SESSION, DEMO_IOCT_SESSION, create_live_app,  # noqa: E402
-                      issue_demo_credentials, seed_demo)
+                      issue_demo_credentials, seed_demo, demo_cadet_hashes)
 from muster_vault import audit, clock, fitness  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -83,7 +83,7 @@ class Demo:
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "demo_vault.db"
         self.session, users = seed_demo(self.db, PACK)
-        self.store, self.tokens = issue_demo_credentials(users)
+        self.store, self.tokens = issue_demo_credentials(users, demo_cadet_hashes(PACK))
         self.app = create_live_app(self.db, self.store)
         self.app.logger.disabled = True  # a forced failure would print a traceback on camera
         logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -328,8 +328,34 @@ def scene_attendance(d, wait):
     wait()
 
 
+def scene_role_views(d, wait):
+    scene(6, "Who sees which scores (Demo 3): grader and OIC see all, a cadet sees their own")
+    st, _ = d.call("POST", f"/v0/sessions/{DEMO_AFT_SESSION}/events", "grader",
+                   {"barcode": d.barcode(1)})  # a second cadet, so there is something to hide
+    say(f"  A grader opens a scorecard for a second cadet ({st}). Now two cadets have scores.")
+    for who in ("grader", "oic"):
+        st, out = d.call("GET", "/v0/results", who)
+        say(f"  {who:7s} GET /v0/results -> {st}, scope '{out['scope']}', {out['count']} scores", G)
+    for who in ("cadet", "cadet_2"):
+        st, out = d.call("GET", "/v0/results", who)
+        names = sorted({r["scorecard"]["cadet_name"] for r in out["results"]})
+        say(f"  {who:7s} GET /v0/results -> {st}, scope '{out['scope']}', {out['count']} scores, "
+            f"names: {names}", G if len(names) == 1 else R)
+    say()
+    say("  A cadet tries to change a score, and a grader tries to supersede a score:", Y)
+    before = d.counts()["audit_log"]
+    st, out = d.call("POST", "/v0/events/1/components", "cadet",
+                     {"component": "MDL", "raw_value": "999",
+                      "age_group": "17-21", "scoring_column": "M|C"})
+    show_call("POST", "/v0/events/1/components", "cadet", st, out)
+    st, out = d.call("POST", "/v0/events/1/supersede", "grader", {"reason": "my score is wrong"})
+    show_call("POST", "/v0/events/1/supersede", "grader", st, out)
+    say(f"    audit entries added by those two attempts: {d.counts()['audit_log'] - before}", G)
+    wait()
+
+
 def scene_integrity(d, wait):
-    scene(6, "Integrity: the audit chain, then a tamper attempt")
+    scene(7, "Integrity: the audit chain, then a tamper attempt")
     r = d.verify()
     say(f"  Audit chain: PASS, {r.entries_checked} entries, none changed or missing", G)
     say()
@@ -359,7 +385,7 @@ def closing():
         "The real CAC barcode parser (only the test pack format is read)",
         "Staff sign-in with a CAC (demo tokens stand in)",
         "Real RFID gate hardware (reads are simulated)",
-        "DPE confirmation of the scoring standards, the IOCT pass time, and age group source",
+        "Confirming the whole-second IOCT rule with the DPE, and where each cadet's age group comes from",
     ):
         say(f"  - {item}")
     say()
@@ -382,6 +408,7 @@ def run_terminal(pause):
         scene_ioct(d, wait)
         scene_forced_failure(d, wait)
         scene_attendance(d, wait)
+        scene_role_views(d, wait)
         scene_integrity(d, wait)
         closing()
     finally:
