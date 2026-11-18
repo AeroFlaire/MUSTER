@@ -312,9 +312,19 @@ def identity_lookup(conn, edipi):
     return {"found": False, "kind": "unknown", "name": None, "role": None}
 
 
-def register_person(conn, actor_id, edipi, first_name, last_name, role):
-    """Admin adds one person. A cadet goes in the cadet table, everyone else in app_user. One Vault
-    call (one transaction, one audit entry)."""
+def _company_id(conn, actor_id, name):
+    """The company row for a name, made if it does not exist yet. None when no name is given."""
+    if not name:
+        return None
+    row = conn.execute("SELECT id FROM company WHERE name = ?", (name,)).fetchone()
+    return row["id"] if row is not None else identity.add_company(conn, actor_id, name)
+
+
+def register_person(conn, actor_id, edipi, first_name, last_name, role, company=None,
+                    class_year=None):
+    """Admin adds one person. A cadet goes in the cadet table (with an optional company and class
+    year), everyone else in app_user. The person is one Vault call (one transaction, one audit
+    entry)."""
     if role not in REGISTER_ROLES:
         raise ValueError("Field 'role': must be one of " + str(sorted(REGISTER_ROLES)) + ".")
     h = hash_identity(None, edipi)
@@ -323,7 +333,9 @@ def register_person(conn, actor_id, edipi, first_name, last_name, role):
         raise InvalidTransition("This person is already registered.")
     last, first = last_name.strip(), first_name.strip()
     if role == "cadet":
-        identity.add_cadet(conn, actor_id, h, last, first)
+        identity.add_cadet(conn, actor_id, h, last, first,
+                           _company_id(conn, actor_id, (company or "").strip() or None),
+                           class_year)
     else:
         identity.add_user(conn, actor_id, f"{last}, {first}", role, h)
     return {"registered": True, "name": f"{last}, {first}", "role": role}
@@ -366,3 +378,106 @@ def results(conn, cadet_hash=None, test_type=None, session_id=None):
         out.append(view)
     return {"scope": "own" if cadet_hash is not None else "all", "count": len(out),
             "results": out}
+
+
+# ---- cadet records (OIC look-up, cadet's own record) --------------------------
+# Read only, except that an OIC opening a cadet's record leaves one audit entry saying who looked
+# (a record of who read personal information is part of handling it). The cadet's ID hash is never
+# returned. The caller names a cadet by the database's own number, which is not an identifier from
+# the card, and a cadet token cannot use it: a cadet reaches only their own record through /v0/me.
+
+def _cadet_row(conn, cadet_id):
+    row = conn.execute(
+        "SELECT c.id, c.last_name, c.first_name, c.class_year, c.active, co.name AS company "
+        "FROM cadet c LEFT JOIN company co ON co.id = c.company_id WHERE c.id = ?",
+        (cadet_id,)).fetchone()
+    if row is None:
+        raise NotFound(f"Cadet {cadet_id} not found.")
+    return row
+
+
+def _cadet_head(row):
+    return {"cadet_id": row["id"], "name": f"{row['last_name']}, {row['first_name']}",
+            "company": row["company"], "class_year": row["class_year"],
+            "active": bool(row["active"])}
+
+
+def _attendance_summary(conn, cadet_id):
+    out = {"PRESENT": 0, "LATE": 0, "ABSENT": 0, "EXCUSED": 0}
+    for r in conn.execute("SELECT status, COUNT(*) AS n FROM attendance WHERE cadet_id = ? "
+                          "GROUP BY status", (cadet_id,)):
+        out[r["status"]] = r["n"]
+    return out
+
+
+def _latest(conn, cadet_id, test_type):
+    """The newest score that still counts (not replaced by a correction), or None."""
+    row = conn.execute(
+        "SELECT id FROM fitness_event WHERE cadet_id = ? AND test_type = ? AND status != 'SUPERSEDED' "
+        "ORDER BY id DESC LIMIT 1", (cadet_id, test_type)).fetchone()
+    if row is None:
+        return None
+    v = _view(conn, row["id"])
+    g = v.get("grading") or {}
+    if test_type == "AFT":
+        return {"status": v["status"], "total_points": v["scorecard"].get("total_points"),
+                "result": g.get("result")}
+    run = v["scorecard"].get("ioct")
+    return {"status": v["status"], "elapsed": run["elapsed"] if run else None,
+            "grades": {c: x["grade"] for c, x in (g.get("by_column") or {}).items()}}
+
+
+def cadet_directory(conn):
+    """Every cadet in the database with a one-line summary. The page searches this list."""
+    out = []
+    for r in conn.execute(
+            "SELECT c.id, c.last_name, c.first_name, c.class_year, c.active, co.name AS company "
+            "FROM cadet c LEFT JOIN company co ON co.id = c.company_id "
+            "ORDER BY c.last_name, c.first_name"):
+        item = _cadet_head(r)
+        item["aft"] = _latest(conn, r["id"], "AFT")
+        item["ioct"] = _latest(conn, r["id"], "IOCT")
+        item["attendance"] = _attendance_summary(conn, r["id"])
+        out.append(item)
+    return {"count": len(out), "cadets": out}
+
+
+def _profile(conn, cadet_id):
+    head = _cadet_head(_cadet_row(conn, cadet_id))
+    results = []
+    for r in conn.execute("SELECT id FROM fitness_event WHERE cadet_id = ? ORDER BY id", (cadet_id,)):
+        v = _view(conn, r["id"])
+        v["scorecard"].pop("cadet_edipi_hash", None)
+        results.append(v)
+    records = [dict(r) for r in conn.execute(
+        "SELECT s.course, s.section, a.class_date, a.status FROM attendance a "
+        "JOIN class_section s ON s.id = a.section_id WHERE a.cadet_id = ? "
+        "ORDER BY a.class_date DESC, a.id DESC LIMIT 30", (cadet_id,))]
+    sections = [dict(r) for r in conn.execute(
+        "SELECT s.course, s.section, s.period FROM enrollment e "
+        "JOIN class_section s ON s.id = e.section_id WHERE e.cadet_id = ? ORDER BY s.course, s.section",
+        (cadet_id,))]
+    return {"cadet": head, "results": results, "sections": sections,
+            "attendance": {"summary": _attendance_summary(conn, cadet_id), "records": records}}
+
+
+def cadet_profile(conn, actor_id, cadet_id):
+    """One cadet's full record, for an OIC. Opening it is written to the audit log."""
+    out = _profile(conn, cadet_id)
+    _log_core(conn, actor_id, "CADET_RECORD_VIEWED", {"cadet_id": cadet_id})
+    return out
+
+
+def my_profile(conn, cadet_hash=None, actor_id=None):
+    """The caller's own record. A cadet credential is tied to a hashed ID and nothing else.
+    A staff credential returns only the staff member's name and role."""
+    if cadet_hash is not None:
+        row = conn.execute("SELECT id FROM cadet WHERE edipi_hash = ? AND active = 1",
+                           (cadet_hash,)).fetchone()
+        if row is None:
+            raise NotFound("No active cadet record for this sign-in.")
+        out = _profile(conn, row["id"])
+        out["kind"] = "cadet"
+        return out
+    u = conn.execute("SELECT display_name, role FROM app_user WHERE id = ?", (actor_id,)).fetchone()
+    return {"kind": "staff", "name": u["display_name"], "role": u["role"]}

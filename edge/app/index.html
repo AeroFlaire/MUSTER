@@ -37,6 +37,10 @@
         <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="36" r="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M32 36V24M26 10h12M32 10v6" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
         <span class="tile-title">IOCT</span><span class="tile-sub">Obstacle course, timed at the gates</span>
       </button>
+      <button class="tile" data-test="RECORDS">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="22" r="10" fill="none" stroke="currentColor" stroke-width="4"/><path d="M12 54c2-12 10-18 20-18s18 6 20 18" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>
+        <span class="tile-title">Cadet records</span><span class="tile-sub">Look up a cadet, or see your own record</span>
+      </button>
       <button class="tile soon" id="tileAtt">
         <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="14" y="10" width="36" height="46" rx="4" fill="none" stroke="currentColor" stroke-width="4"/><path d="M22 28l5 5 10-11M22 44h20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="tile-title">Attendance</span><span class="tile-sub">Coming soon</span>
@@ -50,9 +54,9 @@
     <div class="hero"><h1 id="posTitle">Army Fitness Test</h1><p>Who are you?</p></div>
     <div class="tiles two">
       <button class="tile" data-position="grader">
-        <span class="tile-title">Grader or OIC</span><span class="tile-sub">I am recording scores</span></button>
+        <span class="tile-title" id="pg-t">Grader or OIC</span><span class="tile-sub" id="pg-s">I am recording scores</span></button>
       <button class="tile" data-position="cadet">
-        <span class="tile-title">Cadet</span><span class="tile-sub">I want to see my scores</span></button>
+        <span class="tile-title" id="pc-t">Cadet</span><span class="tile-sub" id="pc-s">I want to see my scores</span></button>
     </div>
     <p class="foot"><button class="linkbtn" data-back="home">Back</button></p>
   </section>
@@ -169,6 +173,32 @@
     </div>
   </section>
 
+  <!-- DIRECTORY (OIC) -->
+  <section class="view" id="v-directory" hidden>
+    <div class="card">
+      <h2>Cadet records</h2>
+      <p class="sub">The OIC can look up any cadet. Every look-up is written to the audit log.</p>
+      <div id="dirOut" class="banner" role="status" aria-live="polite"></div>
+      <div id="dirBody">
+        <label>Search by name, company or class year<input id="dirQ" type="search" autocomplete="off" placeholder="Start typing…"></label>
+        <details class="finder"><summary>Or scan a CAC to open that cadet</summary><div id="scan-dir"></div></details>
+        <p class="hint" id="dirCount"></p>
+        <div id="dirTable"></div>
+      </div>
+      <p><button class="linkbtn" data-back="home">Back</button></p>
+    </div>
+  </section>
+
+  <!-- PROFILE (OIC opens one cadet; a cadet sees their own) -->
+  <section class="view" id="v-profile" hidden>
+    <div class="card">
+      <button class="linkbtn" id="profBack" hidden>Back to the list</button>
+      <div id="profOut" class="banner" role="status" aria-live="polite"></div>
+      <div id="profBody"></div>
+      <p><button class="linkbtn" id="profHome">Home</button></p>
+    </div>
+  </section>
+
   <!-- ATTENDANCE (placeholder) -->
   <section class="view" id="v-attendance" hidden>
     <div class="card"><h2>Attendance</h2>
@@ -193,6 +223,10 @@
           <label><input type="radio" name="role" value="grader"> Grader</label>
           <label><input type="radio" name="role" value="oic"> OIC</label>
           <label><input type="radio" name="role" value="cadet"> Cadet</label>
+        </div>
+        <div class="grid" id="regCadetBox" hidden>
+          <label>Company (optional, for example E-2)<input id="regCompany" autocomplete="off" maxlength="20"></label>
+          <label>Class year (optional)<select id="regYear"><option value="">Choose…</option><option>2027</option><option>2028</option><option>2029</option><option>2030</option></select></label>
         </div>
         <button class="btn" id="regGo">Register</button>
       </div>

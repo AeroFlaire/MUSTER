@@ -77,7 +77,7 @@
   }
   function signOut(silent) {
     S.token = null; S.name = ""; S.role = ""; S.cadet = null; S.eventId = null; S.ref = null;
-    setWho(); resetRecord(); banner("signinOut"); banner("ownOut"); $("ownTable").textContent = ""; $("resTable").textContent = "";
+    setWho(); resetRecord(); D.cadets = []; $("dirTable").textContent = ""; $("profBody").textContent = ""; banner("signinOut"); banner("ownOut"); $("ownTable").textContent = ""; $("resTable").textContent = "";
     if (!silent) show("home");
   }
 
@@ -187,7 +187,12 @@
 
   // ---------------- home, position, sign-in ----------------
   document.querySelectorAll("[data-test]").forEach((b) => b.addEventListener("click", () => {
-    S.test = b.dataset.test; $("posTitle").textContent = S.test === "AFT" ? "Army Fitness Test" : "Interior Obstacle Course Test (IOCT)"; show("position");
+    S.test = b.dataset.test;
+    $("posTitle").textContent = { AFT: "Army Fitness Test", IOCT: "Interior Obstacle Course Test (IOCT)", RECORDS: "Cadet records" }[S.test];
+    const rec = S.test === "RECORDS";
+    $("pg-t").textContent = rec ? "OIC" : "Grader or OIC"; $("pg-s").textContent = rec ? "I want to look up cadets" : "I am recording scores";
+    $("pc-t").textContent = "Cadet"; $("pc-s").textContent = rec ? "I want to see my own record" : "I want to see my scores";
+    show("position");
   }));
   $("tileAtt").addEventListener("click", () => show("attendance"));
   $("homeBtn").addEventListener("click", () => show("home"));
@@ -214,6 +219,7 @@
   });
 
   function enter() {
+    if (S.test === "RECORDS") { return S.position === "cadet" ? openProfile(null) : openDirectory(); }
     if (S.position === "cadet") { $("cadetTitle").textContent = `Your ${S.test} scores`; show("cadet"); loadOwn(); return; }
     resetRecord(); resetBatch(); gTab("record"); $("recTitle").textContent = S.test === "AFT" ? "Record AFT (one or many cadets)" : "Record IOCT";
     $("rec-batch").hidden = S.test !== "AFT"; $("rec-single").hidden = S.test !== "IOCT";
@@ -486,6 +492,82 @@
   $("refreshOwn").addEventListener("click", loadOwn);
   function loadOwn() { loadResults("ownOut", "ownTable", null, false, S.test); }
 
+
+  // ---------------- cadet records: OIC look-up and a cadet's own record ----------------
+  const D = { cadets: [] };
+  let dirScanner = null;
+  const pillClass = (r) => (r === "PASS" ? "ok" : r === "FAIL" ? "warn" : "");
+
+  async function openDirectory() {
+    show("directory"); $("dirBody").hidden = false; $("dirTable").textContent = ""; $("dirCount").textContent = "";
+    banner("dirOut", "info", "Loading…", []);
+    try {
+      const r = await api("GET", "/v0/cadets"); D.cadets = r.cadets; banner("dirOut");
+      if (!dirScanner) dirScanner = makeScanner($("scan-dir"), "Scan a cadet's CAC", onDirScan);
+      drawDirectory();
+    } catch (e) { $("dirBody").hidden = true; banner("dirOut", "bad", e.status === 403 ? "OIC only" : "Could not load", [e.message]); }
+  }
+  function drawDirectory() {
+    const q = $("dirQ").value.trim().toLowerCase();
+    const rows = D.cadets.filter((c) => !q || [c.name, c.company || "", String(c.class_year || "")].join(" ").toLowerCase().includes(q));
+    $("dirCount").textContent = `${rows.length} of ${D.cadets.length} cadets`;
+    const t = h("table", {}, h("thead", {}, h("tr", {}, ...["Cadet", "Company", "Class", "AFT", "IOCT", "Attendance"].map((x) => h("th", { text: x })))));
+    const body = h("tbody");
+    for (const c of rows) {
+      const nameBtn = h("button", { type: "button", class: "rowbtn", text: c.name }); nameBtn.addEventListener("click", () => openProfile(c.cadet_id));
+      const aft = c.aft ? h("span", { class: "pill " + pillClass(c.aft.result), text: c.aft.total_points != null ? `${c.aft.total_points} ${c.aft.result}` : "in progress" }) : "none";
+      const io = c.ioct ? `${c.ioct.elapsed || "in progress"}${c.ioct.grades && c.ioct.grades["M|C"] ? "  (M|C " + c.ioct.grades["M|C"] + " / F " + c.ioct.grades.F + ")" : ""}` : "none";
+      const a = c.attendance, n = a.PRESENT + a.LATE + a.ABSENT + a.EXCUSED;
+      body.append(h("tr", {}, h("td", {}, nameBtn), h("td", { text: c.company || "" }), h("td", { text: c.class_year || "" }), h("td", {}, aft), h("td", { text: io }),
+        h("td", { text: n ? `${a.PRESENT} present, ${a.LATE} late, ${a.ABSENT} absent` : "none" })));
+    }
+    t.append(body); $("dirTable").textContent = ""; $("dirTable").append(rows.length ? t : h("p", { class: "sub", text: "No cadets match." }));
+  }
+  $("dirQ").addEventListener("input", drawDirectory);
+  async function onDirScan(p) {
+    banner("dirOut", "info", "Looking up…", []);
+    try {
+      const r = await api("POST", "/v0/identity/lookup", { edipi: p.edipi });
+      const hit = r.found && r.kind === "cadet" ? D.cadets.find((c) => c.name === r.name) : null;
+      if (hit) { banner("dirOut"); openProfile(hit.cadet_id); }
+      else banner("dirOut", "bad", r.found ? "That card belongs to staff, not a cadet" : "That card is not registered", []);
+    } catch (e) { banner("dirOut", "bad", "Lookup failed", [e.message]); }
+  }
+
+  async function openProfile(cadetId) {
+    const own = cadetId == null;
+    show("profile"); $("profBody").textContent = ""; $("profBack").hidden = own;
+    banner("profOut", "info", "Loading…", []);
+    try {
+      const r = await api("GET", own ? "/v0/me" : `/v0/cadets/${cadetId}`);
+      banner("profOut");
+      if (r.kind === "staff") { $("profBody").append(h("div", { class: "profhead" }, h("h2", { text: r.name }), h("span", { class: "pill big", text: roleLabel(r.role) })),
+        h("p", { class: "sub", text: "Staff accounts have no cadet record. Choose Cadet records, then OIC, to look up cadets." })); return; }
+      renderProfile(r, own);
+    } catch (e) { banner("profOut", "bad", "Could not load", [e.message]); }
+  }
+  function renderProfile(r, own) {
+    const c = r.cadet, host = $("profBody"); host.textContent = "";
+    host.append(h("div", { class: "profhead" }, h("h2", { text: c.name }),
+      h("span", { class: "pill big", text: c.company || "No company set" }), h("span", { class: "pill big", text: c.class_year ? "Class of " + c.class_year : "No class year" }),
+      h("span", { class: "pill big " + (c.active ? "ok" : "warn"), text: c.active ? "Active" : "Inactive" })));
+    if (own) host.append(h("p", { class: "sub", text: "This is your own record. Nobody else's is shown to you." }));
+    host.append(h("h3", { text: "Fitness results" }), resultsTable(r.results, null, false));
+    const a = r.attendance.summary, n = a.PRESENT + a.LATE + a.ABSENT + a.EXCUSED;
+    host.append(h("h3", { text: "Attendance" }));
+    if (!n) host.append(h("p", { class: "sub", text: "No attendance recorded yet." }));
+    else {
+      host.append(h("div", { class: "pillrow" }, ...Object.entries(a).map(([k, v]) => h("span", { class: "pill big", text: `${k[0] + k.slice(1).toLowerCase()} ${v}` }))));
+      const t = h("table", {}, h("thead", {}, h("tr", {}, ...["Date", "Class", "Status"].map((x) => h("th", { text: x })))));
+      const b = h("tbody");
+      for (const x of r.attendance.records) b.append(h("tr", {}, h("td", { text: x.class_date }), h("td", { text: `${x.course} ${x.section}` }), h("td", { text: x.status })));
+      t.append(b); host.append(t);
+    }
+    if (r.sections.length) host.append(h("h3", { text: "Sections" }), h("p", { class: "sub", text: r.sections.map((s) => `${s.course} ${s.section} (${s.period})`).join(", ") }));
+  }
+  $("profBack").addEventListener("click", () => show("directory"));
+  $("profHome").addEventListener("click", () => show("home"));
+
   // ---------------- admin: register people ----------------
   let regScanner = null, regCard = null;
   $("toRegister").addEventListener("click", () => {
@@ -499,6 +581,7 @@
     regCard = { edipi: p.edipi };
     $("regFirst").value = p.firstName || ""; $("regLast").value = p.lastName || "";
     document.querySelectorAll("input[name=role]").forEach((r) => (r.checked = false));
+    $("regCadetBox").hidden = true; $("regCompany").value = ""; $("regYear").value = "";
     $("regForm").hidden = false;
     banner("regOut", "info", "Card read", [`ID ending ${CacParse.maskEdipi(p.edipi).slice(-4)}. Check the name, pick a role, then Register.`]);
   }
@@ -506,8 +589,10 @@
     const role = (document.querySelector("input[name=role]:checked") || {}).value;
     if (!regCard) return;
     if (!role) { banner("regOut", "bad", "Pick a role", []); return; }
+    const payload = { edipi: regCard.edipi, first_name: $("regFirst").value.trim(), last_name: $("regLast").value.trim(), role };
+    if (role === "cadet") { const co = $("regCompany").value.trim(), yr = $("regYear").value; if (co) payload.company = co; if (yr) payload.class_year = parseInt(yr, 10); }
     try {
-      const r = await api("POST", "/v0/admin/register", { edipi: regCard.edipi, first_name: $("regFirst").value.trim(), last_name: $("regLast").value.trim(), role }, adminTok());
+      const r = await api("POST", "/v0/admin/register", payload, adminTok());
       banner("regOut", "ok", "Registered", [`${r.name} as ${roleLabel(r.role)}`]);
       regCard = null; $("regForm").hidden = true; loadPeople();
     } catch (e) { banner("regOut", "bad", "Not registered", [e.message]); }
@@ -524,6 +609,7 @@
     } catch (e) { host.append(h("p", { class: "sub", text: e.code === "network" ? e.message : "Enter the admin token to see the list." })); }
   }
   $("adminKey").addEventListener("change", loadPeople);
+  document.querySelectorAll("input[name=role]").forEach((r) => r.addEventListener("change", () => { $("regCadetBox").hidden = r.value !== "cadet"; }));
 
   setWho(); show("home");
 })();

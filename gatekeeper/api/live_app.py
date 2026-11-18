@@ -94,7 +94,8 @@ def _dispatch(name, conn, actor, kw, body):
         return bridge.identity_lookup(conn, body["edipi"])
     if name == "register_person":
         return bridge.register_person(conn, actor, body["edipi"], body["first_name"],
-                                      body["last_name"], body["role"])
+                                      body["last_name"], body["role"], body.get("company"),
+                                      body.get("class_year"))
     if name == "people":
         return bridge.people(conn)
     if name == "attendance_roster":
@@ -251,6 +252,61 @@ def serve_pages(app):
         return send_from_directory(root / "scanner", name)
 
 
+def records_views(app):
+    """Cadet records. /v0/cadets and /v0/cadets/<id>: OIC (or admin) only. /v0/me: the caller's own
+    record (a cadet's own scores, attendance and details; a staff member's name and role)."""
+    def run(fn):
+        principal = auth.authenticate(request.headers, app.config["CREDENTIALS"])
+        if principal is None:
+            return stub.error(401, "unauthenticated", "Missing or invalid credentials.")
+        conn = None
+        try:
+            conn = bridge.connect(app.config["MUSTER_DB"])
+            return fn(conn, principal)
+        except Exception as exc:  # noqa: BLE001
+            status, code, message = bridge.map_error(exc)
+            if status == 500:
+                app.logger.exception("Vault read failed (details above; no request data logged)")
+            return stub.error(status, code, message)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def oic_only(conn, principal):
+        role = bridge.role_of(conn, principal.actor_id) if principal.actor_id is not None else None
+        if role not in stub.OIC:
+            return stub.error(403, "forbidden_role",
+                              "Only the OIC can look up other cadets." if role else
+                              "This account may not look up cadet records.")
+        return None
+
+    def directory():
+        def go(conn, principal):
+            denied = oic_only(conn, principal)
+            return denied or (jsonify(bridge.cadet_directory(conn)), 200)
+        return run(go)
+
+    def profile(cadet_id):
+        def go(conn, principal):
+            denied = oic_only(conn, principal)
+            return denied or (jsonify(bridge.cadet_profile(conn, principal.actor_id, cadet_id)), 200)
+        return run(go)
+
+    def me():
+        def go(conn, principal):
+            if principal.actor_id is None:
+                if not principal.cadet_hash:
+                    return stub.error(403, "forbidden_role",
+                                      "This credential is not linked to a cadet record.")
+                return jsonify(bridge.my_profile(conn, cadet_hash=principal.cadet_hash)), 200
+            if bridge.role_of(conn, principal.actor_id) is None:
+                return stub.error(403, "forbidden_role", "This account is inactive or unknown.")
+            return jsonify(bridge.my_profile(conn, actor_id=principal.actor_id)), 200
+        return run(go)
+
+    return directory, profile, me
+
+
 def create_live_app(db_path, credentials):
     """`credentials` is an auth.CredentialStore (or a path to a saved one)."""
     app = stub.create_app()
@@ -268,6 +324,12 @@ def create_live_app(db_path, credentials):
             app.view_functions[key] = results_view(app)
         elif key == "POST /v0/auth/cac-signin":
             app.view_functions[key] = signin_view(app)
+        elif key == "GET /v0/cadets":
+            app.view_functions[key] = records_views(app)[0]
+        elif key == "GET /v0/cadets/<int:cadet_id>":
+            app.view_functions[key] = records_views(app)[1]
+        elif key == "GET /v0/me":
+            app.view_functions[key] = records_views(app)[2]
 
     serve_pages(app)
     return app
@@ -372,6 +434,7 @@ def seed_app(db_path, synthetic=False):
     for tag in ("TAG-017", "TAG-018", "TAG-019"):
         ioct.register_tag(conn, admin, tag, tag[-2:])
     if synthetic:
+        companies = [identity.add_company(conn, admin, "E-2"), identity.add_company(conn, admin, "F-1")]
         key = identity.load_edipi_key()
         cards = json.loads(SYNTHETIC_CARDS.read_text(encoding="utf-8"))
         for c in cards:
@@ -381,7 +444,8 @@ def seed_app(db_path, synthetic=False):
             h = identity.hash_edipi(c["edipi"], key)
             e = c["expect"]
             if n <= 10:
-                identity.add_cadet(conn, admin, h, e["lastName"], e["firstName"])
+                comp = companies[(n - 1) % 2]
+                identity.add_cadet(conn, admin, h, e["lastName"], e["firstName"], comp, 2027 + n % 2)
             elif n == 11:
                 identity.add_user(conn, admin, f"{e['lastName']}, {e['firstName']}", "grader", h)
             elif n == 12:

@@ -118,6 +118,12 @@ def check_field(field, kind, value):
     elif kind == "person_role":
         if value not in ("grader", "oic", "instructor", "cadet"):
             return validation_error(field, "must be grader, oic, instructor or cadet")
+    elif kind == "company":
+        if not isinstance(value, str) or not re.match(r"^[A-Za-z0-9][A-Za-z0-9 \-]{0,19}$", value.strip()):
+            return validation_error(field, "must be 1 to 20 letters, digits, spaces or dashes")
+    elif kind == "year":
+        if not isinstance(value, int) or isinstance(value, bool) or not 2000 <= value <= 2100:
+            return validation_error(field, "must be a year such as 2027")
     elif kind == "forbidden":
         return validation_error(field, "is worked out by the Gatekeeper from the scoring tables, "
                                        "do not send it")
@@ -190,8 +196,14 @@ ROUTES = [
      {"edipi": ("edipi", True)}, None, None),
     ("POST", "/v0/admin/register", {"admin"}, 201, "register_person",
      {"edipi": ("edipi", True), "first_name": ("str", True), "last_name": ("str", True),
-      "role": ("person_role", True)}, None, None),
+      "role": ("person_role", True), "company": ("company", False),
+      "class_year": ("year", False)}, None, None),
     ("GET", "/v0/admin/people", {"admin"}, 200, "people", None, None, None),
+    # Cadet records. The OIC searches every cadet and opens one. A cadet token reaches only their
+    # own record through /v0/me. Read only (an OIC look-up leaves one audit entry).
+    ("GET", "/v0/cadets", OIC, 200, "cadet_directory", None, None, None),
+    ("GET", "/v0/cadets/<int:cadet_id>", OIC, 200, "cadet_profile", None, None, None),
+    ("GET", "/v0/me", GRADER | OIC | {"instructor"}, 200, "my_profile", None, None, None),
     ("POST", "/v0/sessions/<int:session_id>/ioct/pair", GRADER, 201, "ioct_event_paired",
      {"barcode": ("str", False), "edipi": ("edipi", False), "tag_uid": ("str", True),
       "client_ref": ("str", False)}, "IOCT", None),

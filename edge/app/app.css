@@ -101,3 +101,13 @@ th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(-
 .tabs[hidden], .chips[hidden] { display:none; }
 #b-submit { margin-top:14px; }
 main { padding-bottom:calc(30px + env(safe-area-inset-bottom)); }
+
+.finder { margin:8px 0 4px; } .finder summary { cursor:pointer; color:var(--mute); font-size:14px; }
+.rowbtn { background:none; border:0; padding:0; font:inherit; font-weight:700; color:#1a5fa0; text-align:left; cursor:pointer; text-decoration:underline; }
+.profhead { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:6px 0 14px; }
+.profhead h2 { margin:0 14px 0 0; font-size:26px; }
+.pillrow { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
+.pill.big { font-size:14px; padding:5px 12px; }
+.pill.ok { background:var(--ok-bg); border-color:var(--ok); color:var(--ok); }
+.pill.warn { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
+input[type=search] { -webkit-appearance:none; }

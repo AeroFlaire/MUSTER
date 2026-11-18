@@ -1,0 +1,25 @@
+{
+  "count": 2,
+  "cadets": [
+    {
+      "cadet_id": 1,
+      "name": "Alpha, Avery",
+      "company": "E-2",
+      "class_year": 2028,
+      "active": true,
+      "aft": {"status": "SUBMITTED", "total_points": 499, "result": "PASS"},
+      "ioct": {"status": "SUBMITTED", "elapsed": "2:35.00", "grades": {"M|C": "A-", "F": "A+"}},
+      "attendance": {"PRESENT": 0, "LATE": 0, "ABSENT": 0, "EXCUSED": 0}
+    },
+    {
+      "cadet_id": 2,
+      "name": "Bravo, Blake",
+      "company": "F-1",
+      "class_year": 2027,
+      "active": true,
+      "aft": null,
+      "ioct": null,
+      "attendance": {"PRESENT": 0, "LATE": 0, "ABSENT": 0, "EXCUSED": 0}
+    }
+  ]
+}

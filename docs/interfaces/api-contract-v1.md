@@ -80,6 +80,9 @@ Role sets, copied from the Vault: GRADER = grader, oic. STATION = compiler_stati
 | POST /v0/attendance/marks | instructor | attendance.mark (own section only) |
 | GET /v0/attendance/sections/{section_id}/roster?class_date= | instructor | attendance.roster (own section only) |
 | GET /v0/results?test_type=&session_id= | grader, oic (all scores); a cadet token (own scores only) | read only: fitness.scorecard for each event |
+| GET /v0/cadets | oic, admin | read only: every cadet with company, class year, latest AFT and IOCT summary, attendance counts |
+| GET /v0/cadets/{cadet_id} | oic, admin | read only: one cadet's full record (details, every score, attendance). Writes one `CADET_RECORD_VIEWED` audit entry |
+| GET /v0/me | any signed-in person | read only: a cadet's own record, or a staff member's name and role |
 | POST /v0/auth/cac-signin | none (this is how you get a token) | app_user or cadet lookup by hashed ID, audit entry |
 | POST /v0/identity/lookup | grader, oic | read only: the name the database holds for a scanned card |
 | POST /v0/admin/register | admin | identity.add_user or identity.add_cadet (one audit entry) |
@@ -750,6 +753,249 @@ List the people: GET /v0/admin/people, role admin. Names and roles only.
 ```
 
 Limit, stated plainly: a scan identifies a person but does not prove it is them. Anyone holding a photo of a card barcode could present it. Real proof needs the card's chip and a reader, which is not built.
+
+
+## 5E. Cadet records (live, read only)
+
+The OIC looks a cadet up. A cadet looks up their own record. No ID or hash is ever returned.
+
+`GET /v0/cadets` (oic, admin): `{count, cadets: [{cadet_id, name, company, class_year, active, aft, ioct, attendance}]}`. `aft` is the newest score that still counts (`status`, `total_points`, `result`) or null. `ioct` has `status`, `elapsed` and `grades` for both scoring columns, or null. `attendance` counts PRESENT, LATE, ABSENT and EXCUSED. `cadet_id` is the database's own number, not an identifier from the card.
+
+`GET /v0/cadets/{cadet_id}` (oic, admin): `{cadet, results, sections, attendance: {summary, records}}`. `results` holds every score (the same shape as `GET /v0/results`, including drafts and replaced scores with their status). Each call writes one `CADET_RECORD_VIEWED` audit entry with the OIC's user and the cadet number, so a record of who read a cadet's information exists. 404 for an unknown cadet.
+
+`GET /v0/me`: a cadet session returns that cadet's own record (`kind: "cadet"`, the same fields as above). It takes no cadet number, so a cadet has no way to ask for someone else's. A staff session returns `{kind: "staff", name, role}`. A cadet's own view is not audited.
+
+A grader (not OIC) and a cadet get 403 on `/v0/cadets` and `/v0/cadets/{id}`. No token is 401.
+
+Example `GET /v0/cadets`:
+
+```json
+{
+  "count": 2,
+  "cadets": [
+    {
+      "cadet_id": 1,
+      "name": "Alpha, Avery",
+      "company": "E-2",
+      "class_year": 2028,
+      "active": true,
+      "aft": {
+        "status": "SUBMITTED",
+        "total_points": 499,
+        "result": "PASS"
+      },
+      "ioct": {
+        "status": "SUBMITTED",
+        "elapsed": "2:35.00",
+        "grades": {
+          "M|C": "A-",
+          "F": "A+"
+        }
+      },
+      "attendance": {
+        "PRESENT": 0,
+        "LATE": 0,
+        "ABSENT": 0,
+        "EXCUSED": 0
+      }
+    },
+    {
+      "cadet_id": 2,
+      "name": "Bravo, Blake",
+      "company": "F-1",
+      "class_year": 2027,
+      "active": true,
+      "aft": null,
+      "ioct": null,
+      "attendance": {
+        "PRESENT": 0,
+        "LATE": 0,
+        "ABSENT": 0,
+        "EXCUSED": 0
+      }
+    }
+  ]
+}
+```
+
+Example `GET /v0/cadets/1`:
+
+```json
+{
+  "cadet": {
+    "cadet_id": 1,
+    "name": "Alpha, Avery",
+    "company": "E-2",
+    "class_year": 2028,
+    "active": true
+  },
+  "results": [
+    {
+      "event_id": 11,
+      "status": "SUBMITTED",
+      "scorecard": {
+        "event_id": 11,
+        "test_type": "AFT",
+        "session_id": 7,
+        "session_date": "2026-10-22",
+        "location": "Test Gym",
+        "cadet_name": "Alpha, Cadet",
+        "grader_id": 3,
+        "supersedes_event_id": null,
+        "components": [
+          {
+            "component": "2MR",
+            "raw_value": "13:15",
+            "points": 100
+          },
+          {
+            "component": "HRP",
+            "raw_value": "60",
+            "points": 100
+          },
+          {
+            "component": "MDL",
+            "raw_value": "340",
+            "points": 100
+          },
+          {
+            "component": "PLK",
+            "raw_value": "3:40",
+            "points": 100
+          },
+          {
+            "component": "SDC",
+            "raw_value": "1:30",
+            "points": 100
+          }
+        ],
+        "total_points": 500
+      },
+      "grading": {
+        "total_points": 500,
+        "result": "PASS",
+        "failed_events": [],
+        "min_points_per_event": 60,
+        "standards_status": "confirmed"
+      }
+    }
+  ],
+  "sections": [
+    {
+      "course": "XE401",
+      "section": "G1",
+      "period": "B hour"
+    }
+  ],
+  "attendance": {
+    "summary": {
+      "PRESENT": 1,
+      "LATE": 0,
+      "ABSENT": 0,
+      "EXCUSED": 0
+    },
+    "records": [
+      {
+        "course": "XE401",
+        "section": "G1",
+        "class_date": "2026-11-17",
+        "status": "PRESENT"
+      }
+    ]
+  }
+}
+```
+
+Example `GET /v0/me` for a cadet:
+
+```json
+{
+  "cadet": {
+    "cadet_id": 1,
+    "name": "Alpha, Avery",
+    "company": "E-2",
+    "class_year": 2028,
+    "active": true
+  },
+  "results": [
+    {
+      "event_id": 11,
+      "status": "SUBMITTED",
+      "scorecard": {
+        "event_id": 11,
+        "test_type": "AFT",
+        "session_id": 7,
+        "session_date": "2026-10-22",
+        "location": "Test Gym",
+        "cadet_name": "Alpha, Cadet",
+        "grader_id": 3,
+        "supersedes_event_id": null,
+        "components": [
+          {
+            "component": "2MR",
+            "raw_value": "13:15",
+            "points": 100
+          },
+          {
+            "component": "HRP",
+            "raw_value": "60",
+            "points": 100
+          },
+          {
+            "component": "MDL",
+            "raw_value": "340",
+            "points": 100
+          },
+          {
+            "component": "PLK",
+            "raw_value": "3:40",
+            "points": 100
+          },
+          {
+            "component": "SDC",
+            "raw_value": "1:30",
+            "points": 100
+          }
+        ],
+        "total_points": 500
+      },
+      "grading": {
+        "total_points": 500,
+        "result": "PASS",
+        "failed_events": [],
+        "min_points_per_event": 60,
+        "standards_status": "confirmed"
+      }
+    }
+  ],
+  "sections": [
+    {
+      "course": "XE401",
+      "section": "G1",
+      "period": "B hour"
+    }
+  ],
+  "attendance": {
+    "summary": {
+      "PRESENT": 1,
+      "LATE": 0,
+      "ABSENT": 0,
+      "EXCUSED": 0
+    },
+    "records": [
+      {
+        "course": "XE401",
+        "section": "G1",
+        "class_date": "2026-11-17",
+        "status": "PRESENT"
+      }
+    ]
+  },
+  "kind": "cadet"
+}
+```
+
+Registration (section 5D) now accepts two optional fields for a cadet: `company` (1 to 20 letters, digits, spaces or dashes, for example "E-2") and `class_year` (an integer such as 2027). Nothing else about a cadet is stored; age and sex stay out of the Vault on purpose.
 
 ## 6. Signing at the score compiler
 
