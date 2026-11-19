@@ -60,7 +60,8 @@ Role sets, copied from the Vault: GRADER = grader, oic. STATION = compiler_stati
 | Method and path | Roles | Vault call |
 |---|---|---|
 | GET /v0/health | any role | none |
-| POST /v0/sessions | oic, admin | fitness.open_session |
+| GET /v0/sessions | grader, oic, admin | (read, newest first) |
+| POST /v0/sessions | grader, oic, admin | fitness.open_session |
 | POST /v0/sessions/{session_id}/close | oic, admin | fitness.close_session |
 | POST /v0/sessions/{session_id}/events | grader, oic | fitness.open_event (AFT) |
 | POST /v0/events/{event_id}/components | grader, oic | fitness.record_component (points computed by the Gatekeeper) |
@@ -111,7 +112,7 @@ Every event response has the same wrapper: the event id, its status, and the `sc
 
 `total_points` is the sum of the component points, or null if there are no components or any component has no points. Points are entered by the grader. Points are worked out by the Gatekeeper from the official AFT score tables (see 4.7), not typed.
 
-### 4.1 Open a test session: POST /v0/sessions (oic, admin)
+### 4.1 Open a test session: POST /v0/sessions (grader, oic, admin)
 
 Request body: `test_type` (`AFT` or `IOCT`), `session_date` (`YYYY-MM-DD`), `location`.
 
@@ -134,6 +135,36 @@ Response 201:
   "oic_id": 2,
   "opened_at": "2026-10-22T12:55:00.000Z",
   "closed_at": null
+}
+```
+
+A grader may start a test session, because each session holds one live score per cadet and a retake is simply a new session. Once a score is saved only the OIC can reopen or correct it (`reopen`, `supersede`). `oic_id` is the person who opened the session (a grader or the OIC).
+
+`GET /v0/sessions` (grader, oic) lists every session, newest first, so a grading screen can use the latest one that is still open (`closed_at` is null):
+
+```json
+{
+  "count": 2,
+  "sessions": [
+    {
+      "session_id": 7,
+      "test_type": "AFT",
+      "session_date": "2026-10-22",
+      "location": "Test Gym",
+      "oic_id": 2,
+      "opened_at": "2026-10-22T12:55:00.000Z",
+      "closed_at": null
+    },
+    {
+      "session_id": 6,
+      "test_type": "IOCT",
+      "session_date": "2026-10-20",
+      "location": "Test Track",
+      "oic_id": 2,
+      "opened_at": "2026-10-20T12:00:00.000Z",
+      "closed_at": "2026-10-20T15:00:00.000Z"
+    }
+  ]
 }
 ```
 

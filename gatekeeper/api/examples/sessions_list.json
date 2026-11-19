@@ -1,0 +1,23 @@
+{
+  "count": 2,
+  "sessions": [
+    {
+      "session_id": 7,
+      "test_type": "AFT",
+      "session_date": "2026-10-22",
+      "location": "Test Gym",
+      "oic_id": 2,
+      "opened_at": "2026-10-22T12:55:00.000Z",
+      "closed_at": null
+    },
+    {
+      "session_id": 6,
+      "test_type": "IOCT",
+      "session_date": "2026-10-20",
+      "location": "Test Track",
+      "oic_id": 2,
+      "opened_at": "2026-10-20T12:00:00.000Z",
+      "closed_at": "2026-10-20T15:00:00.000Z"
+    }
+  ]
+}

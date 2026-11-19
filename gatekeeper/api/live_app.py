@@ -42,6 +42,8 @@ DEFAULT_CREDS = HERE / "muster_demo_credentials.json"
 # endpoint -> (name, HTTP status on success). The three AFT writes were made live in L24,
 # the three IOCT (timing) writes in L25.
 LIVE = {
+    "POST /v0/sessions": ("open_session", 201),
+    "GET /v0/sessions": ("sessions_list", 200),
     "POST /v0/sessions/<int:session_id>/events": ("open_event", 201),
     "POST /v0/events/<int:event_id>/components": ("add_component", 200),
     "POST /v0/events/<int:event_id>/submit": ("submit", 200),
@@ -68,6 +70,10 @@ def _dispatch(name, conn, actor, kw, body):
     if name == "open_event":
         return bridge.open_event(conn, actor, kw["session_id"], body.get("barcode"),
                                  body.get("client_ref"), body.get("edipi"))
+    if name == "open_session":
+        return bridge.open_session(conn, actor, body["test_type"], body["session_date"], body["location"])
+    if name == "sessions_list":
+        return bridge.sessions_list(conn)
     if name == "add_component":
         return bridge.add_component(conn, actor, kw["event_id"], body["component"],
                                     body["raw_value"], body["age_group"], body["scoring_column"])

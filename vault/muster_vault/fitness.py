@@ -56,7 +56,7 @@ def open_session(conn: sqlite3.Connection, actor_id: int, test_type: str,
     if test_type not in ("AFT", "IOCT"):
         raise ValueError("test_type must be 'AFT' or 'IOCT'")
     with transaction(conn):
-        identity.require_role(conn, actor_id, OIC_ROLES)
+        identity.require_role(conn, actor_id, GRADER_ROLES | OIC_ROLES)   # a grader starts a test; only the OIC corrects one
         cur = conn.execute(
             "INSERT INTO test_session(test_type, session_date, location, oic_id, opened_at) "
             "VALUES (?, ?, ?, ?, ?)",

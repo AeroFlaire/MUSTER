@@ -11,7 +11,28 @@
 (function () {
   "use strict";
   const WASM_DIR = "/scanner/vendor/zxing-wasm-3.1.5/";
-  const AFT_SESSION = 1, IOCT_SESSION = 2;                   // created by seed_app()
+  // The test session each grading screen writes into: the newest open one, or one a grader starts.
+  // A session holds one live score per cadet, so a retake is a new session.
+  const SESS = { AFT: null, IOCT: null };
+  const sid = (t) => { if (!SESS[t]) throw { message: `No ${t} session is open. Start a new ${t} session first.` }; return SESS[t].session_id; };
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  async function loadSession(type) {
+    try { const r = await api("GET", "/v0/sessions"); SESS[type] = r.sessions.find((x) => x.test_type === type && !x.closed_at) || null; } catch (_) { SESS[type] = null; }
+    drawSessBar(type);
+  }
+  async function newSession(type, location) {
+    SESS[type] = await api("POST", "/v0/sessions", { test_type: type, session_date: today(), location: (location || "").trim() || "Test site" });
+    drawSessBar(type); return SESS[type];
+  }
+  function drawSessBar(type) {
+    const host = $("sess" + type); if (!host) return; host.textContent = "";
+    const s = SESS[type];
+    host.append(h("span", { class: "sname", text: s ? `${type} session ${s.session_date}, ${s.location}` : `No open ${type} session` }));
+    const loc = h("input", { maxlength: "60", placeholder: "Where is this test? (for example, Arvin Gym)", value: s ? s.location : "" });
+    const go = h("button", { type: "button", class: "btn", text: `Start a new ${type} session` });
+    go.addEventListener("click", async () => { go.disabled = true; try { await newSession(type, loc.value); } catch (e) { banner(type === "AFT" ? "b-setupOut" : "gradeOut", "bad", "Could not start a session", [e.message]); go.disabled = false; } });
+    host.append(h("details", {}, h("summary", { text: "Start a new session (for a new test day or a retake)" }), h("div", { class: "srow" }, loc, go)));
+  }
   const $ = (id) => document.getElementById(id);
   const DEMO = window.DEMO_TOKENS || {};
 
@@ -224,7 +245,7 @@
     resetRecord(); resetBatch(); gTab("record"); $("recTitle").textContent = S.test === "AFT" ? "Record AFT (one or many cadets)" : "Record IOCT";
     $("rec-batch").hidden = S.test !== "AFT"; $("rec-single").hidden = S.test !== "IOCT";
     $("aftBox").hidden = true; $("ioctBox").hidden = S.test !== "IOCT";
-    show("grader"); loadStandards();
+    show("grader"); loadStandards(); loadSession(S.test);
   }
 
   // ---------------- grader: record ----------------
@@ -282,7 +303,14 @@
     if (!S.cadet) return;
     const btn = $("score"); btn.disabled = true; banner("gradeOut", "info", "Working…", []);
     try { await scoreIoct(); }
-    catch (e) { banner("gradeOut", "bad", "Not saved", [e.message]); btn.disabled = false; }
+    catch (e) {
+      banner("gradeOut", "bad", "Not saved", [e.message]); btn.disabled = false;
+      if (/live score/.test(e.message || "")) {
+        const again = h("button", { type: "button", class: "btn", text: "Start a new IOCT session and try again" });
+        again.addEventListener("click", async () => { again.disabled = true; try { await newSession("IOCT", (SESS.IOCT || {}).location); S.eventId = null; await scoreIoct(); } catch (e2) { banner("gradeOut", "bad", "Not saved", [e2.message]); } btn.disabled = false; });
+        $("gradeOut").append(h("p", {}, again));
+      }
+    }
   });
 
   async function scoreIoct() {
@@ -290,10 +318,10 @@
     if (!rt) throw { message: "Enter the run time as m:ss, for example 2:35." };
     if (!DEMO.gate_station) throw { message: "The demo gate only works on the laptop running the server. The real gate hardware posts these reads itself." };
     const ms = (parseInt(rt[1], 10) * 60 + parseInt(rt[2], 10)) * 1000;
-    if (!S.eventId) { S.ref = S.ref || uuid(); const ev = await api("POST", `/v0/sessions/${IOCT_SESSION}/ioct/pair`, { edipi: S.cadet.edipi, tag_uid: tag, client_ref: S.ref }); S.eventId = ev.event_id; }
+    if (!S.eventId) { S.iSess = sid("IOCT"); S.ref = S.ref || uuid(); const ev = await api("POST", `/v0/sessions/${sid("IOCT")}/ioct/pair`, { edipi: S.cadet.edipi, tag_uid: tag, client_ref: S.ref }); S.eventId = ev.event_id; }
     const base = Date.now() + 1000;           // the Vault only counts reads made after the pairing
-    await api("POST", `/v0/sessions/${IOCT_SESSION}/gate-reads`, { tag_uid: tag, gate: "START", read_at_ms: base, gate_device: "START", client_ref: uuid() }, DEMO.gate_station);
-    await api("POST", `/v0/sessions/${IOCT_SESSION}/gate-reads`, { tag_uid: tag, gate: "END", read_at_ms: base + ms, gate_device: "END", client_ref: uuid() }, DEMO.gate_station);
+    await api("POST", `/v0/sessions/${S.iSess}/gate-reads`, { tag_uid: tag, gate: "START", read_at_ms: base, gate_device: "START", client_ref: uuid() }, DEMO.gate_station);
+    await api("POST", `/v0/sessions/${S.iSess}/gate-reads`, { tag_uid: tag, gate: "END", read_at_ms: base + ms, gate_device: "END", client_ref: uuid() }, DEMO.gate_station);
     const run = await api("POST", `/v0/events/${S.eventId}/ioct/compute`);
     const r = await api("POST", `/v0/events/${S.eventId}/submit`);
     const col = S.standards.column_for_sex[S.sex], g = r.grading.by_column[col];
@@ -371,7 +399,7 @@
     const btn = $("b-add"); btn.disabled = true;
     try {
       const ref = uuid();
-      const ev = await api("POST", `/v0/sessions/${AFT_SESSION}/events`, { edipi: B.pending.edipi, client_ref: ref });
+      const ev = await api("POST", `/v0/sessions/${sid("AFT")}/events`, { edipi: B.pending.edipi, client_ref: ref });
       B.cadets.push({ name: B.pending.name, eventId: ev.event_id, sex: sexEl.value, age, col: S.standards.column_for_sex[sexEl.value], values: {}, points: {}, submitted: false, result: null });
       B.pending = null;                                        // the ID is not kept once the scorecard is open
       $("b-addbox").hidden = true; $("b-verify").hidden = true;
@@ -386,7 +414,10 @@
   // the old values stay in the audit log, the grader changes what is wrong and submits again.
   function offerEdit(sex, age) {
     const box = $("b-setupOut"); banner("b-setupOut", "bad", "This cadet already has a score in this session",
-      [S.role === "oic" ? "You can edit it: it is reopened, the old values are kept in the audit log." : "Only the OIC can edit a saved score."]);
+      ["Start a new session to take a new score (a retake)." + (S.role === "oic" ? " Or edit the saved score: the old values stay in the audit log." : " Only the OIC can edit a saved score.")]);
+    const fresh = h("button", { type: "button", class: "btn", text: "Start a new AFT session and add them" });
+    fresh.addEventListener("click", async () => { fresh.disabled = true; try { await newSession("AFT", (SESS.AFT || {}).location); $("b-add").click(); } catch (e) { banner("b-setupOut", "bad", "Could not start a session", [e.message]); } });
+    box.append(h("p", {}, fresh));
     if (S.role !== "oic") return;
     const b = h("button", { type: "button", class: "btn", text: "Edit this score" });
     b.addEventListener("click", () => editExisting(sex, age, b));
@@ -396,7 +427,7 @@
     btn.disabled = true; const who = B.pending.name;
     try {
       const all = await api("GET", "/v0/results?test_type=AFT");
-      const hit = all.results.filter((r) => r.scorecard.cadet_name === who && r.scorecard.session_id === AFT_SESSION && r.status !== "SUPERSEDED").pop();
+      const hit = all.results.filter((r) => r.scorecard.cadet_name === who && r.scorecard.session_id === SESS.AFT.session_id && r.status !== "SUPERSEDED").pop();
       if (!hit) throw new Error("Could not find that score.");
       let id = hit.event_id;
       if (hit.status === "SUBMITTED" || hit.status === "DISPUTED") await api("POST", `/v0/events/${id}/reopen`, { note: "Retake or correction from the grading screen" });

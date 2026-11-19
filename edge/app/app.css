@@ -111,3 +111,8 @@ main { padding-bottom:calc(30px + env(safe-area-inset-bottom)); }
 .pill.ok { background:var(--ok-bg); border-color:var(--ok); color:var(--ok); }
 .pill.warn { background:var(--warn-bg); border-color:var(--warn); color:var(--warn); }
 input[type=search] { -webkit-appearance:none; }
+
+.sessbar { margin:0 0 14px; padding:10px 12px; border:1px solid var(--line, #d9deea); border-radius:12px; background:#f6f8fc; font-size:14px; }
+.sessbar .sname { font-weight:700; }
+.sessbar details { margin-top:6px; } .sessbar summary { cursor:pointer; color:#1a5fa0; }
+.sessbar .srow { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; } .sessbar input { flex:1 1 160px; }

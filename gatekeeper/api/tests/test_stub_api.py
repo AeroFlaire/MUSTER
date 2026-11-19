@@ -17,7 +17,8 @@ ALL_ROLES = ["admin", "oic", "grader", "compiler_station", "gate_station", "inst
 # Written out by hand from contract section 2, not read from app.ROUTES, so a
 # mistake in the app cannot hide a mistake in the table.
 CASES = [
-    ("POST", "/v0/sessions", "session_create_request", "session", 201, {"oic", "admin"}),
+    ("POST", "/v0/sessions", "session_create_request", "session", 201, {"grader", "oic", "admin"}),
+    ("GET", "/v0/sessions", None, "sessions_list", 200, {"grader", "oic", "admin"}),
     ("POST", "/v0/sessions/7/close", None, "session_closed", 200, {"oic", "admin"}),
     ("POST", "/v0/sessions/7/events", "event_open_request", "aft_event_entered", 201, {"grader", "oic"}),
     ("POST", "/v0/events/11/components", "component_request", "component", 200, {"grader", "oic"}),

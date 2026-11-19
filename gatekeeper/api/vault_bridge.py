@@ -139,6 +139,24 @@ def open_event(conn, actor_id, session_id, barcode, client_ref=None, edipi=None)
     return _view(conn, event_id)
 
 
+def _session_row(r):
+    return {"session_id": r["id"], "test_type": r["test_type"], "session_date": r["session_date"],
+            "location": r["location"], "oic_id": r["oic_id"], "opened_at": r["opened_at"],
+            "closed_at": r["closed_at"]}
+
+
+def open_session(conn, actor_id, test_type, session_date, location):
+    """A grader (or the OIC) starts a new AFT or IOCT. Each session holds one live score per cadet,
+    so a retake is simply a new session. Only the OIC can later change a saved score."""
+    sid = fitness.open_session(conn, actor_id, test_type, session_date, location)
+    return _session_row(conn.execute("SELECT * FROM test_session WHERE id = ?", (sid,)).fetchone())
+
+
+def sessions_list(conn):
+    rows = conn.execute("SELECT * FROM test_session ORDER BY id DESC").fetchall()
+    return {"count": len(rows), "sessions": [_session_row(r) for r in rows]}
+
+
 def add_component(conn, actor_id, event_id, component, raw_value, age_group, scoring_column):
     """Contract v1: the grader sends the raw result and the scoring context. The points come
     from the official tables (scoring.py), never from the client. One Vault call."""

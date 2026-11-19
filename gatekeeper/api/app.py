@@ -158,7 +158,8 @@ ROUTES = [
     # method, rule, roles, status, example (name or function of path args), body spec,
     # session type required, event type required
     ("GET", "/v0/health", None, 200, None, None, None, None),
-    ("POST", "/v0/sessions", OIC, 201, "session",
+    ("GET", "/v0/sessions", GRADER | {"admin"}, 200, "sessions_list", None, None, None),
+    ("POST", "/v0/sessions", GRADER | {"admin"}, 201, "session",
      {"test_type": ("test_type", True), "session_date": ("date", True), "location": ("str", True)},
      None, None),
     ("POST", "/v0/sessions/<int:session_id>/close", OIC, 200, "session_closed", None, "any", None),
