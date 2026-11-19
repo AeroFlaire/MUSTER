@@ -1,0 +1,2 @@
+muster_event_id,status,cadet_signed,corrects_event_id,session_date,location,cadet_id,last_name,first_name,company,class_year,entered_by,elapsed,elapsed_ms,audit_seq,audit_entry_hash
+5,SUBMITTED,no,,2026-11-19,Demo Track,4,Delta,Devon,F-1,2027,"Kilo, Kai",2:35.00,155000,63,faced1e5fd106d9b8d4f2d7fad1c1c2220b1a13f51a53654b36c2ed2cd3bab7c

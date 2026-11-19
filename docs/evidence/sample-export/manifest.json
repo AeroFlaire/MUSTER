@@ -1,0 +1,40 @@
+{
+  "audit_head_at_export": {
+    "entry_hash": "faced1e5fd106d9b8d4f2d7fad1c1c2220b1a13f51a53654b36c2ed2cd3bab7c",
+    "seq": 63,
+    "ts": "2026-11-19T15:04:00.676Z"
+  },
+  "batch_id": "1795100641213",
+  "created_at": "2026-11-19T15:04:01.214Z",
+  "created_by": "De La Lima, Lane",
+  "files": {
+    "aft.csv": {
+      "rows": 3,
+      "sha256": "37c8fc6435a545a9c9268da96bdd16705d40b0558fe34f410f488755b0040869"
+    },
+    "attendance.csv": {
+      "rows": 3,
+      "sha256": "2389395e99ad272cc2c83a5e5d682d502475a4120566b03ec99162b91df4cd33"
+    },
+    "ioct.csv": {
+      "rows": 1,
+      "sha256": "3149f9dffaae8c7501834a8ffebae18d026795fcf7b287be2a6bc577f537e787"
+    }
+  },
+  "format": "MUSTER CSV v0 (API contract fields; AMS format is an open RFI)",
+  "integrity_check": "PASS (63 audit entries, every score and attendance row matches its audit trail)",
+  "limits": [
+    "No DoD ID and no ID hash: AMS matching by DoD ID is part of the open RFI.",
+    "AFT age group and scoring column are not stored in the Vault yet.",
+    "IOCT grade is worked out by the Gatekeeper from the DPE scale and is not in this file; the time is.",
+    "A typed (manual) IOCT time is not yet labeled as manual.",
+    "cadet_signed is 'no' until CAC signing at the score compiler is live."
+  ],
+  "scores_left_out": {
+    "SUPERSEDED": 1
+  },
+  "what_is_in_it": {
+    "aft.csv / ioct.csv": "scores that count: SUBMITTED, SIGNED, EXPORTED. A correction has corrects_event_id set; the score it replaced is SUPERSEDED and left out.",
+    "attendance.csv": "every attendance mark"
+  }
+}

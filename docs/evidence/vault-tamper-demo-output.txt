@@ -1,0 +1,61 @@
+# Output of: python scripts/vault_demo.py   (synthetic data, throwaway key; run 2026-11-19 14:56 UTC)
+
+Demo database: <temp folder>/muster-demo.db  (encrypted with SQLCipher, AES-256)
+
+== Setup: staff, two synthetic cadets, CAC keys enrolled
+  stored: HMAC of each EDIPI (never the raw ID) + each card's public key
+
+== AFT: grader scans Cadet Doe's CAC barcode and enters results
+  event 1 SUBMITTED to score compiler
+
+== Score compiler: Cadet Doe reviews and signs with CAC + PIN
+  bytes to sign (682 bytes) include score + one-time nonce
+MUSTER — Fitness Score Receipt
+========================================
+Cadet:     Doe, Jane
+Test:      AFT  (2026-10-15, Arvin Gym)
+Event ID:  1
+  2MR       15:10    88 pts
+  HRP          42    76 pts
+  MDL         210    72 pts
+  PLK        2:40    75 pts
+  SDC        1:52    82 pts
+Total:     393
+----------------------------------------
+Signed:    2026-11-19T14:56:34.992Z
+Signed-data SHA-256: 45ec4c7c89f8b6608a9eadf48df5e1f1ad2e2ca3f9c7faa7dee4a727242f3d97
+Audit entry: #18
+Audit hash:  e7fdffd5ba61dda31dab48883e8c0cd05ede0772773e3844e382d14250dc9466
+Keep this receipt. It lets anyone check the record wasn't changed.
+
+== IOCT: Cadet Roe gets wristband TAG-017; gates send raw reads
+  Vault-computed time: 2:52.08 (last START read -> first END read)
+
+== ATTACK 0: Cadet Doe tries to sign Cadet Roe's time with Doe's own CAC
+  refused: signature does not match the enrolled key  (attempt written to the audit log)
+  Cadet Roe signed with the right card; wristband released
+
+== Export signed scores (file stand-in until AMS/Azimuth RFI is answered)
+  exported 2 scores -> <temp folder>/muster-export-1795100195011.json
+
+== Integrity checks — everything clean
+  audit chain: PASS — 34 entries, head 46d7b61e19fff267e37f5e826304460624550a19e26f558147af2504840ce870
+  score 1 matches what the cadet signed: True
+
+== OUTSIDER: copies the database file but does not have the key
+  plain-text search for 'Arvin Gym'          -> not found
+  plain-text search for 'Hayes Gym'          -> not found
+  plain-text search for 'TAG-017'            -> not found
+  plain-text search for '15:10'              -> not found
+  plain-text search for '074315cb9e24a381'   -> not found
+  plain sqlite3 refuses it: file is not a database
+  The rest of the demo is an INSIDER who has the key — encryption can't stop
+  them, so the audit chain and the cadet's signature have to catch them.
+
+== ATTACK 1: someone edits Doe's 2-mile points directly in SQL (88 -> 100)
+  score check: {'event_id': 1, 'status': 'EXPORTED', 'signed': True, 'ok': False, 'problems': ['2MR: database says 15:10 / 100 pts, audit log says 15:10 / 88 pts', 'scorecard in the database differs from what the cadet signed']}
+
+== ATTACK 2: drop the append-only locks and rewrite an audit entry
+  audit chain: FAIL at seq 20: contents were changed after the entry was written
+
+Both edits were possible — and both were caught. That is tamper-EVIDENCE.

@@ -13,6 +13,7 @@ Database files are encrypted; set MUSTER_DB_KEY first (see `new-key`).
     python -m muster_vault set-retention --db muster.db --actor 1 --function FITNESS \
                                          --days 1825 --source "AR 25-400-2, ..."
     python -m muster_vault encrypt-db --plain old.db --db new.db   # one-time conversion
+    python -m muster_vault export-csv --db muster.db --actor 2 --out exports   # AMS export v0 (OIC)
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ import argparse
 import json
 import sys
 
-from . import audit, db, fitness, retention
+from . import audit, db, export, fitness, retention
 from .errors import VaultError
 
 
@@ -48,6 +49,11 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("--function", required=True, choices=retention.FUNCTIONS)
     sp.add_argument("--days", type=int, required=True)
     sp.add_argument("--source", required=True, help="where the number comes from")
+    sp = sub.add_parser("export-csv", help="OIC: AFT, IOCT and attendance records to CSV "
+                                           "(stops if the integrity check fails)")
+    sp.add_argument("--db", required=True)
+    sp.add_argument("--actor", type=int, required=True, help="app_user id of the OIC")
+    sp.add_argument("--out", required=True, help="folder the export folder is made in")
     sp = sub.add_parser("encrypt-db", help="copy an old plaintext database into an encrypted one")
     sp.add_argument("--plain", required=True)
     sp.add_argument("--db", required=True, help="new encrypted file (must not exist)")
@@ -102,6 +108,10 @@ def _run(args) -> int:
                   f"{', cadet-signed' if e['signed'] else ''})")
             for p in e["problems"]:
                 print(f"      - {p}")
+        for a in rep["attendance"]:
+            print(f"Attendance {a['attendance_id']:<5} TAMPERED")
+            for p in a["problems"]:
+                print(f"      - {p}")
         print("RESULT: " + ("PASS - every record matches its audit trail" if rep["ok"]
                             else "FAIL - tampering detected"))
         return 0 if rep["ok"] else 1
@@ -110,6 +120,13 @@ def _run(args) -> int:
             flag = "  <-- PLACEHOLDER, not policy" if r["placeholder"] else ""
             print(f"{r['function']:<11} {r['days']:>6} days   past retention: "
                   f"{r['past_retention']:<4} source: {r['source']}{flag}")
+        return 0
+    if args.cmd == "export-csv":
+        m = export.export_csv(conn, args.actor, args.out)
+        print(f"Integrity check: {m['integrity_check']}")
+        for name, f in m["files"].items():
+            print(f"  {name:<15} {f['rows']:>5} rows   sha256 {f['sha256'][:16]}...")
+        print(f"Written to {m['folder']} (logged in the audit trail)")
         return 0
     if args.cmd == "set-retention":
         r = retention.set_days(conn, args.actor, args.function, args.days, args.source)
