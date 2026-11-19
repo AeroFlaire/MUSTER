@@ -29,7 +29,8 @@ python -m muster_vault verify   --db muster.db        # PASS, or first broken se
 python -m muster_vault head     --db muster.db        # latest entry (outside anchor)
 python -m muster_vault history  --db muster.db --entity fitness_event --id 3
 python -m muster_vault check    --db muster.db --event 3   # score vs. audit log + what cadet signed
-python -m muster_vault integrity --db muster.db       # chain + every score vs. its audit trail
+python -m muster_vault integrity --db muster.db       # chain + every score and attendance row vs. its audit trail
+python -m muster_vault export-csv --db muster.db --actor 2 --out exports   # AMS export v0 (OIC; stops if integrity fails)
 python -m muster_vault retention --db muster.db       # retention settings + records past them
 python -m muster_vault set-retention --db muster.db --actor 1 --function FITNESS --days 1825 --source "..."
 python -m muster_vault encrypt-db --plain old.db --db new.db   # convert an old plaintext DB

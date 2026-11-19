@@ -1,0 +1,4 @@
+attendance_id,class_date,course,section,period,term,cadet_id,last_name,first_name,company,class_year,status,recorded_by,recorded_at,audit_seq,audit_entry_hash
+1,2026-11-19,XE401,G1,B hour,2027-1,1,Alpha,Avery,E-2,2028,PRESENT,"Instructor, Test",2026-11-19T15:03:59.679Z,26,275c19081cb65e61fa55bfa4f06c8fe135836c0213b0241e80a8086de10703f2
+2,2026-11-19,XE401,G1,B hour,2027-1,2,Bravo,Blake,F-1,2027,LATE,"Instructor, Test",2026-11-19T15:03:59.680Z,28,7c4fdd5613dd2be3f224e7603784e171b2c24790d29aad45a1abb46c00ec7a76
+3,2026-11-19,XE401,G1,B hour,2027-1,3,Charlie,Casey,E-2,2028,ABSENT,"Instructor, Test",2026-11-19T15:03:59.682Z,30,63624b93cf61a4819284016e5c3fb53bbe704d91a2388a9c82fa9f8e4f9e97c7

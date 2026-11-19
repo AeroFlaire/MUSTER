@@ -470,6 +470,16 @@ def app_tokens(db_path):
     return store, {role: store.issue(f"app {role}", uid) for role, uid in ids.items()}
 
 
+def tls_context():
+    """HTTPS for the app: a fresh self-signed certificate each start, TLS 1.3 only (SR-4).
+    Flask's plain "adhoc" setting also accepts TLS 1.2, which SR-4 does not allow."""
+    import ssl
+    from werkzeug.serving import generate_adhoc_ssl_context
+    ctx = generate_adhoc_ssl_context()
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_3
+    return ctx
+
+
 def _lan_address():
     import socket
     try:
@@ -504,7 +514,7 @@ if __name__ == "__main__":
             print("  Admin token (type it into the Register page on your phone; it changes every start):")
             print("  " + tokens.get("admin", ""))
         print("  Press Ctrl+C to stop.")
-        flask_app.run(host=host, port=5000, ssl_context="adhoc" if https else None)
+        flask_app.run(host=host, port=5000, ssl_context=tls_context() if https else None)
         sys.exit(0)
     db = Path(os.environ.get("MUSTER_DB", DEFAULT_DB))
     creds_path = Path(os.environ.get("MUSTER_CREDENTIALS", DEFAULT_CREDS))

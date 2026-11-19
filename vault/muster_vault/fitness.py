@@ -506,9 +506,12 @@ def verify_event(conn: sqlite3.Connection, event_id: int) -> dict:
 
 def integrity_report(conn: sqlite3.Connection) -> dict:
     """Everything at once: the audit chain, then every score against the log (and,
-    if signed, against the cadet's signature). `ok` is True only if all pass."""
+    if signed, against the cadet's signature), then every attendance row against the
+    log. `ok` is True only if all pass."""
+    from . import attendance  # here, not at the top: attendance does not need fitness
     chain = audit.verify(conn)
     events = [verify_event(conn, r["id"])
               for r in conn.execute("SELECT id FROM fitness_event ORDER BY id")]
-    return {"ok": chain.ok and all(e["ok"] for e in events), "chain": chain,
-            "events": events}
+    att = attendance.check_against_audit(conn)
+    return {"ok": chain.ok and all(e["ok"] for e in events) and not att, "chain": chain,
+            "events": events, "attendance": att}

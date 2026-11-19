@@ -1,0 +1,2 @@
+# Keep the sample export byte-for-byte as written, so its SHA-256s in manifest.json still match on Windows
+docs/evidence/sample-export/* -text

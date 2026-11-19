@@ -120,3 +120,241 @@ def export_signed(conn: sqlite3.Connection, actor_id: int, exporter: Exporter,
                            "reference": str(reference), "count": len(ids),
                            "batch_sha256": batch["batch_sha256"]})
     return {"exported": len(ids), "reference": reference, "batch_id": batch["batch_id"]}
+
+
+# ---------------------------------------------------------------------------
+# AMS export v0: CSV files of the saved records (PBI-10)
+# ---------------------------------------------------------------------------
+# The AMS / Azimuth field list and format are still an open RFI with DPE. Until it is
+# answered, the card says: export a simple CSV of the fields already in the API contract.
+# This is that file. When the RFI is answered, only the column lists below change.
+#
+# Rules this follows:
+#   - Nothing leaves if the Vault fails its own integrity check (audit chain, every score
+#     against its audit trail, every attendance row against its audit trail). A refused
+#     export is written to the audit log with the reason.
+#   - No raw DoD ID (the Vault never has one) and no ID hash. A cadet is named by the
+#     Vault's own cadet number, name, company and class year. AMS will need the DoD ID to
+#     match records; how it gets it is part of the open RFI.
+#   - Row counts are checked against the database after the files are written.
+#   - The export is itself written to the audit log (counts and a SHA-256 of each file),
+#     so a file that is changed after it leaves can be caught.
+#   - It is a report: it does not change any record's status. EXPORTED stays the status
+#     for a cadet-signed score pushed to AMS (export_signed above).
+
+import csv  # noqa: E402
+import hashlib  # noqa: E402
+import io  # noqa: E402
+import shutil  # noqa: E402
+
+from .errors import VaultError  # noqa: E402
+
+CSV_FORMAT = "MUSTER CSV v0 (API contract fields; AMS format is an open RFI)"
+COUNTED_STATUSES = ("SUBMITTED", "SIGNED", "EXPORTED")   # scores that count
+AFT_EVENTS = ("MDL", "HRP", "SDC", "PLK", "2MR")
+MIN_EVENT_POINTS = 60   # pass rule, contract v1 section 4.7 (confirmed 17-Nov)
+
+_CADET_COLS = ["cadet_id", "last_name", "first_name", "company", "class_year"]
+AFT_COLUMNS = (["muster_event_id", "status", "cadet_signed", "corrects_event_id",
+                "session_date", "location"] + _CADET_COLS + ["entered_by"]
+               + [f"{c}_{k}" for c in AFT_EVENTS for k in ("raw", "points")]
+               + ["total_points", "result", "audit_seq", "audit_entry_hash"])
+IOCT_COLUMNS = (["muster_event_id", "status", "cadet_signed", "corrects_event_id",
+                 "session_date", "location"] + _CADET_COLS + ["entered_by"]
+                + ["elapsed", "elapsed_ms", "audit_seq", "audit_entry_hash"])
+ATTENDANCE_COLUMNS = (["attendance_id", "class_date", "course", "section", "period", "term"]
+                      + _CADET_COLS + ["status", "recorded_by", "recorded_at",
+                                       "audit_seq", "audit_entry_hash"])
+
+
+class ExportRefused(VaultError):
+    """The integrity check failed, so nothing was exported."""
+
+
+def _safe(v):
+    """Stop a spreadsheet from running a cell as a formula (CSV injection)."""
+    if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + v
+    return "" if v is None else v
+
+
+def _anchor(conn, entity_type, entity_id):
+    e = one(conn, "SELECT seq, entry_hash FROM audit_log WHERE entity_type = ? AND "
+                  "entity_id = ? ORDER BY seq DESC LIMIT 1", (entity_type, entity_id))
+    return (e["seq"], e["entry_hash"]) if e else ("", "")
+
+
+def _cadet(conn, cadet_id):
+    r = one(conn, "SELECT c.id, c.last_name, c.first_name, c.class_year, co.name AS company "
+                  "FROM cadet c LEFT JOIN company co ON co.id = c.company_id WHERE c.id = ?",
+            (cadet_id,))
+    return {"cadet_id": r["id"], "last_name": r["last_name"], "first_name": r["first_name"],
+            "company": r["company"], "class_year": r["class_year"]}
+
+
+def _user_name(conn, user_id):
+    r = one(conn, "SELECT display_name FROM app_user WHERE id = ?", (user_id,))
+    return r["display_name"] if r else ""
+
+
+def _aft_result(points: dict) -> str:
+    if any(points.get(c) is None for c in AFT_EVENTS):
+        return "INCOMPLETE"
+    return "PASS" if all(points[c] >= MIN_EVENT_POINTS for c in AFT_EVENTS) else "FAIL"
+
+
+def _score_rows(conn, test_type):
+    rows = []
+    for ev in conn.execute(
+            f"SELECT * FROM fitness_event WHERE test_type = ? AND status IN "
+            f"({','.join('?' * len(COUNTED_STATUSES))}) ORDER BY id",
+            (test_type, *COUNTED_STATUSES)).fetchall():
+        card = fitness.scorecard(conn, ev["id"])
+        seq, h = _anchor(conn, "fitness_event", ev["id"])
+        row = {"muster_event_id": ev["id"], "status": ev["status"],
+               "cadet_signed": "yes" if ev["cadet_attestation_id"] else "no",
+               "corrects_event_id": ev["supersedes_event_id"],
+               "session_date": card["session_date"], "location": card["location"],
+               **_cadet(conn, ev["cadet_id"]), "entered_by": _user_name(conn, ev["grader_id"]),
+               "audit_seq": seq, "audit_entry_hash": h}
+        if test_type == "AFT":
+            pts = {}
+            for c in card["components"]:
+                row[f"{c['component']}_raw"] = c["raw_value"]
+                row[f"{c['component']}_points"] = c["points"]
+                pts[c["component"]] = c["points"]
+            row["total_points"] = card["total_points"]
+            row["result"] = _aft_result(pts)
+        else:
+            run = card["ioct"] or {}
+            row["elapsed"], row["elapsed_ms"] = run.get("elapsed"), run.get("elapsed_ms")
+        rows.append(row)
+    return rows
+
+
+def _attendance_rows(conn):
+    rows = []
+    for a in conn.execute(
+            "SELECT a.*, s.course, s.section, s.period, s.term FROM attendance a "
+            "JOIN class_section s ON s.id = a.section_id ORDER BY a.class_date, a.id").fetchall():
+        seq, h = _anchor(conn, "attendance", a["id"])
+        rows.append({"attendance_id": a["id"], "class_date": a["class_date"],
+                     "course": a["course"], "section": a["section"], "period": a["period"],
+                     "term": a["term"], **_cadet(conn, a["cadet_id"]), "status": a["status"],
+                     "recorded_by": _user_name(conn, a["recorded_by"]),
+                     "recorded_at": a["recorded_at"], "audit_seq": seq, "audit_entry_hash": h})
+    return rows
+
+
+def _csv_bytes(columns, rows) -> bytes:
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=columns, lineterminator="\n")
+    w.writeheader()
+    for r in rows:
+        w.writerow({c: _safe(r.get(c)) for c in columns})
+    return buf.getvalue().encode("utf-8")
+
+
+def _refuse(conn, actor_id, reasons):
+    with transaction(conn):
+        audit.append(conn, function="CORE", action="EXPORT_REFUSED", actor_id=actor_id,
+                     entity_type="export_batch", entity_id=None,
+                     data={"format": "csv-v0", "reasons": reasons[:20]})
+    raise ExportRefused("Export stopped: the integrity check failed, so nothing was "
+                        "exported. " + " ".join(reasons[:5]))
+
+
+def export_csv(conn: sqlite3.Connection, actor_id: int, out_dir: str) -> dict:
+    """OIC: write the saved AFT, IOCT and attendance records to CSV files for AMS.
+
+    Makes <out_dir>/muster-export-<batch_id>/ with aft.csv, ioct.csv, attendance.csv
+    and manifest.json. Returns the manifest (plus the folder path)."""
+    identity.require_role(conn, actor_id, fitness.OIC_ROLES)
+
+    rep = fitness.integrity_report(conn)
+    if not rep["ok"]:
+        reasons = []
+        if not rep["chain"].ok:
+            reasons.append(f"Audit chain broken at entry {rep['chain'].first_bad_seq} "
+                           f"({rep['chain'].reason}).")
+        reasons += [f"Score {e['event_id']}: {p}." for e in rep["events"] if not e["ok"]
+                    for p in e["problems"]]
+        reasons += [f"Attendance {a['attendance_id']}: {p}." for a in rep["attendance"]
+                    for p in a["problems"]]
+        _refuse(conn, actor_id, reasons)
+
+    head = audit.head(conn)
+    files = {"aft.csv": (AFT_COLUMNS, _score_rows(conn, "AFT")),
+             "ioct.csv": (IOCT_COLUMNS, _score_rows(conn, "IOCT")),
+             "attendance.csv": (ATTENDANCE_COLUMNS, _attendance_rows(conn))}
+
+    # What the database holds, counted separately from the rows written, so the two can be
+    # compared (PBI-10: export row count equals the saved record count).
+    def count(sql, *p):
+        return conn.execute(sql, p).fetchone()[0]
+    placeholders = ",".join("?" * len(COUNTED_STATUSES))
+    in_db = {"aft.csv": count(f"SELECT COUNT(*) FROM fitness_event WHERE test_type = 'AFT' "
+                              f"AND status IN ({placeholders})", *COUNTED_STATUSES),
+             "ioct.csv": count(f"SELECT COUNT(*) FROM fitness_event WHERE test_type = 'IOCT' "
+                               f"AND status IN ({placeholders})", *COUNTED_STATUSES),
+             "attendance.csv": count("SELECT COUNT(*) FROM attendance")}
+    left_out = {r["status"]: r["n"] for r in conn.execute(
+        f"SELECT status, COUNT(*) AS n FROM fitness_event WHERE status NOT IN ({placeholders}) "
+        f"GROUP BY status", COUNTED_STATUSES)}
+
+    batch_id = str(clock.now_ms())
+    folder = os.path.join(out_dir, f"muster-export-{batch_id}")
+    os.makedirs(folder, exist_ok=False)
+    try:
+        written = {}
+        for name, (cols, rows) in files.items():
+            data = _csv_bytes(cols, rows)
+            with open(os.path.join(folder, name), "wb") as f:
+                f.write(data)
+            with open(os.path.join(folder, name), newline="", encoding="utf-8") as f:
+                n = sum(1 for _ in csv.DictReader(f))
+            if n != in_db[name]:
+                raise VaultError(f"{name}: wrote {n} rows but the database holds "
+                                 f"{in_db[name]}; export stopped")
+            written[name] = {"rows": n, "sha256": hashlib.sha256(data).hexdigest()}
+
+        manifest = {
+            "batch_id": batch_id,
+            "format": CSV_FORMAT,
+            "created_at": clock.now_iso(),
+            "created_by": _user_name(conn, actor_id),
+            "integrity_check": f"PASS ({rep['chain'].entries_checked} audit entries, every "
+                               f"score and attendance row matches its audit trail)",
+            "audit_head_at_export": head,
+            "files": written,
+            "scores_left_out": left_out,
+            "what_is_in_it": {
+                "aft.csv / ioct.csv": "scores that count: " + ", ".join(COUNTED_STATUSES)
+                                      + ". A correction has corrects_event_id set; the score "
+                                        "it replaced is SUPERSEDED and left out.",
+                "attendance.csv": "every attendance mark",
+            },
+            "limits": [
+                "No DoD ID and no ID hash: AMS matching by DoD ID is part of the open RFI.",
+                "AFT age group and scoring column are not stored in the Vault yet.",
+                "IOCT grade is worked out by the Gatekeeper from the DPE scale and is not "
+                "in this file; the time is.",
+                "A typed (manual) IOCT time is not yet labeled as manual.",
+                "cadet_signed is 'no' until CAC signing at the score compiler is live.",
+            ],
+        }
+        mbytes = json.dumps(manifest, indent=2, sort_keys=True).encode("utf-8")
+        with open(os.path.join(folder, "manifest.json"), "wb") as f:
+            f.write(mbytes)
+
+        with transaction(conn):
+            audit.append(conn, function="CORE", action="EXPORT_CSV", actor_id=actor_id,
+                         entity_type="export_batch", entity_id=None,
+                         data={"batch_id": batch_id, "format": "csv-v0",
+                               "files": written,
+                               "manifest_sha256": hashlib.sha256(mbytes).hexdigest(),
+                               "audit_head_seq": head.get("seq")})
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)   # never leave a half-written export
+        raise
+    return {**manifest, "folder": folder}

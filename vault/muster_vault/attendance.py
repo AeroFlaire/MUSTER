@@ -6,6 +6,7 @@ instructor can mark it, only enrolled cadets get marked, and every change is log
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 
 from . import audit, clock, identity
@@ -92,3 +93,41 @@ def roster(conn: sqlite3.Connection, section_id: int, class_date: str) -> list[d
         "  AND a.class_date = ? "
         "WHERE e.section_id = ? ORDER BY c.last_name, c.first_name",
         (class_date, section_id))]
+
+
+def check_against_audit(conn: sqlite3.Connection) -> list[dict]:
+    """Does every attendance row still say what the audit log says was recorded?
+
+    Same rule as fitness scores (fitness.check_against_audit): replay every
+    ATTENDANCE_MARKED and ATTENDANCE_CORRECTED entry, in order, and compare the result
+    with the attendance table. A row changed, added or deleted with SQL, going around
+    MUSTER, leaves no audit entry, so the table and the log disagree. If someone also
+    edits the log to match, audit.verify() catches that instead.
+
+    Returns one {attendance_id, problems} dict per row that disagrees (empty = all good).
+    """
+    expected: dict[int, dict] = {}
+    for e in conn.execute("SELECT entity_id, action, data FROM audit_log "
+                          "WHERE entity_type = 'attendance' AND action IN "
+                          "('ATTENDANCE_MARKED', 'ATTENDANCE_CORRECTED') ORDER BY seq"):
+        d = json.loads(e["data"])
+        expected[e["entity_id"]] = {k: d[k] for k in ("section_id", "cadet_id",
+                                                     "class_date", "status")}
+    actual = {r["id"]: {"section_id": r["section_id"], "cadet_id": r["cadet_id"],
+                        "class_date": r["class_date"], "status": r["status"]}
+              for r in conn.execute("SELECT * FROM attendance")}
+    out = []
+    for att_id in sorted(set(expected) | set(actual)):
+        problems = []
+        if att_id not in actual:
+            problems.append("in the audit log but missing from the database (deleted)")
+        elif att_id not in expected:
+            problems.append("in the database but never recorded through MUSTER")
+        else:
+            for k, want in expected[att_id].items():
+                if actual[att_id][k] != want:
+                    problems.append(f"{k}: database says {actual[att_id][k]}, "
+                                    f"audit log says {want}")
+        if problems:
+            out.append({"attendance_id": att_id, "problems": problems})
+    return out
