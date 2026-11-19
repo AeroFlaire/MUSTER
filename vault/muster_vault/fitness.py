@@ -389,16 +389,25 @@ def reopen(conn: sqlite3.Connection, actor_id: int, event_id: int, note: str) ->
                      data={"from_status": ev["status"], "note": note})
 
 
+SUPERSEDABLE = ("SUBMITTED", "DISPUTED", "SIGNED", "EXPORTED")
+
+
 def supersede(conn: sqlite3.Connection, actor_id: int, event_id: int, reason: str) -> int:
-    """Correct an already-signed score: keep the old one, open a new one that replaces it."""
+    """Correct a saved score: keep the old one untouched, open a new one that replaces it.
+
+    Works on any score that has left the grader's hands (SUBMITTED, DISPUTED, SIGNED or
+    EXPORTED). The original row and its results never change; it is only marked SUPERSEDED,
+    and the new event points back at it. This is how the OIC fixes a score (advisor rule,
+    17-Nov). `reopen` still exists for a DISPUTED card the cadet sends back, but it edits in
+    place, so the OIC's correction path does not use it."""
     if not reason.strip():
         raise ValueError("a correction needs a reason")
     with transaction(conn):
         identity.require_role(conn, actor_id, OIC_ROLES)
         ev = get_event(conn, event_id)
-        if ev["status"] not in ("SIGNED", "EXPORTED"):
-            raise InvalidTransition(f"only SIGNED/EXPORTED scores are superseded "
-                                    f"(this one is {ev['status']}; use reopen)")
+        if ev["status"] not in SUPERSEDABLE:
+            raise InvalidTransition(f"only a submitted, disputed, signed or exported score "
+                                    f"can be corrected (this one is {ev['status']})")
         conn.execute("UPDATE fitness_event SET status = 'SUPERSEDED' WHERE id = ?",
                      (event_id,))
         audit.append(conn, function=_function(ev["test_type"]), action="EVENT_SUPERSEDED",

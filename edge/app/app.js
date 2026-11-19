@@ -410,8 +410,8 @@
     btn.disabled = false; drawSlots();
   });
 
-  // A cadet who already has a score this session (a retake, or a correction): the OIC reopens it,
-  // the old values stay in the audit log, the grader changes what is wrong and submits again.
+  // A cadet who already has a score this session (a retake, or a correction): the OIC corrects it.
+  // The original is never changed. It is marked replaced, and a new scorecard points back at it.
   function offerEdit(sex, age) {
     const box = $("b-setupOut"); banner("b-setupOut", "bad", "This cadet already has a score in this session",
       ["Start a new session to take a new score (a retake)." + (S.role === "oic" ? " Or edit the saved score: the old values stay in the audit log." : " Only the OIC can edit a saved score.")]);
@@ -430,12 +430,13 @@
       const hit = all.results.filter((r) => r.scorecard.cadet_name === who && r.scorecard.session_id === SESS.AFT.session_id && r.status !== "SUPERSEDED").pop();
       if (!hit) throw new Error("Could not find that score.");
       let id = hit.event_id;
-      if (hit.status === "SUBMITTED" || hit.status === "DISPUTED") await api("POST", `/v0/events/${id}/reopen`, { note: "Retake or correction from the grading screen" });
-      else if (hit.status === "SIGNED" || hit.status === "EXPORTED") id = (await api("POST", `/v0/events/${id}/supersede`, { reason: "Retake or correction from the grading screen" })).new_event_id;
+      // Always a correction: the original stays exactly as saved (marked replaced) and a new
+      // scorecard that points back at it is opened with its results copied in.
+      if (hit.status !== "ENTERED") id = (await api("POST", `/v0/events/${id}/supersede`, { reason: "Retake or correction from the grading screen" })).new_event_id;
       const c = { name: who, eventId: id, sex, age, col: S.standards.column_for_sex[sex], values: {}, points: {}, submitted: false, result: null, edited: true };
       for (const k of hit.scorecard.components) { c.values[k.component] = k.raw_value; c.points[k.component] = k.points; }
       B.cadets.push(c); B.pending = null; $("b-addbox").hidden = true; $("b-verify").hidden = true;
-      banner("b-setupOut", "ok", who + " reopened", ["Their saved results are loaded. Change what is wrong, then submit."]);
+      banner("b-setupOut", "ok", who + ": correction opened", ["The original is kept unchanged. Its results are copied in here: change what is wrong, then submit."]);
     } catch (e) { banner("b-setupOut", "bad", "Could not edit this score", [e.message]); }
     drawSlots();
   }
