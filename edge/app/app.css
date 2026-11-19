@@ -126,3 +126,16 @@ header { position:sticky; top:0; z-index:20; background:#0b1a2e; border-bottom:1
 
 .whoami .btn.ghost { white-space:nowrap; }
 @media (max-width:560px) { .brand { font-size:18px; } .whoami { font-size:12px; gap:8px; } .whoami .btn.small { padding:8px 12px; } .tabs.evt button { flex:1 1 28%; } }
+
+.tablewrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.restable td, .restable th { vertical-align:top; }
+.restable .small { display:block; font-size:12px; color:var(--mute); margin-top:2px; }
+tr.old td { opacity:.55; }
+.overlay { position:fixed; inset:0; z-index:50; background:rgba(5,12,24,.78); overflow-y:auto; display:flex; justify-content:center; align-items:flex-start;
+  padding:calc(16px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom)); }
+.panel { background:#fff; color:var(--ink); border-radius:16px; padding:18px; width:100%; max-width:560px; box-shadow:0 12px 40px rgba(0,0,0,.4); }
+.panel h2 { margin:0 0 8px; font-size:22px; } .panel label { display:block; margin:10px 0 4px; font-weight:600; } .panel input[type=text], .panel input:not([type]), .panel select { width:100%; }
+.panel .srow { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+
+.sesshead { margin:18px 0 6px; font-size:16px; padding-bottom:4px; border-bottom:2px solid var(--line); }
+label.chk { display:flex; gap:8px; align-items:center; font-weight:400; font-size:14px; margin:6px 0; } label.chk input { width:auto; }

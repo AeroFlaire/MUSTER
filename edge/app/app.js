@@ -520,35 +520,151 @@
   $("b-new").addEventListener("click", () => { resetBatch(); });
 
   // ---------------- results tables ----------------
-  function resultsTable(rows, col, showName) {
-    if (!rows.length) return h("p", { class: "sub", text: "No scores yet." });
-    const head = ["Cadet", "Test", "Status", "Detail", "Result"].filter((x) => showName || x !== "Cadet");
-    const t = h("table", {}, h("thead", {}, h("tr", {}, ...head.map((x) => h("th", { text: x })))));
+  // ---------------- results: pick a session, open a score, the OIC edits ----------------
+  const sessLabel = (sc) => `${sc.location || "Session"}, ${sc.session_date} (#${sc.session_id})`;
+  const SHORT_EVT = { MDL: "Deadlift", HRP: "Hand-release push-ups", SDC: "Sprint-drag-carry", PLK: "Plank", "2MR": "2-mile run" };
+
+  // Shows `rows` with a session drop-down. `latest` adds "Most recent" (the newest saved score of each test
+  // for each cadet), which is what a cadet sees first. `reload` runs after the OIC changes a score.
+  function showResults(host, rows, o) {
+    host.textContent = "";
+    const sorted = rows.slice().sort((x, y) => y.event_id - x.event_id);
+    const seen = new Map(); for (const r of sorted) if (!seen.has(r.scorecard.session_id)) seen.set(r.scorecard.session_id, r.scorecard);
+    const sel = h("select", {});
+    if (o.latest) sel.append(h("option", { value: "latest", text: "Most recent" }));
+    sel.append(h("option", { value: "all", text: "All sessions" }));
+    for (const [id, sc] of seen) sel.append(h("option", { value: String(id), text: sessLabel(sc) }));
+    sel.value = o.latest ? "latest" : "all";
+    const out = h("div", {});
+    const showOld = h("input", { type: "checkbox" });
+    const draw = () => {
+      const live = (r) => showOld.checked || r.status !== "SUPERSEDED";
+      out.textContent = "";
+      if (sel.value === "latest") {
+        const got = new Set();
+        const list = sorted.filter((r) => { if (r.status === "SUPERSEDED") return false; const k = r.scorecard.cadet_name + "|" + r.scorecard.test_type; if (got.has(k)) return false; got.add(k); return true; });
+        out.append(resultsTable(list, o.col, o.showName, (r) => openScore(r, o.reload), false));
+        return;
+      }
+      // One section per session, newest first. Each cadet has one score in a session.
+      for (const [id, sc] of seen) {
+        if (sel.value !== "all" && String(id) !== sel.value) continue;
+        const list = sorted.filter((r) => r.scorecard.session_id === id && live(r));
+        if (!list.length) continue;
+        out.append(h("h3", { class: "sesshead", text: `${sc.test_type}: ${sessLabel(sc)}` }), resultsTable(list, o.col, o.showName, (r) => openScore(r, o.reload), true));
+      }
+      if (!out.firstChild) out.append(h("p", { class: "sub", text: "No scores here." }));
+    };
+    showOld.addEventListener("change", draw);
+    sel.addEventListener("change", draw);
+    host.append(h("label", {}, "Session", sel), h("label", { class: "chk" }, showOld, " Also show replaced scores"), out); draw();
+  }
+
+  function resultsTable(rows, col, showName, onOpen, grouped) {
+    if (!rows.length) return h("p", { class: "sub", text: "No scores here." });
+    const head = showName ? (grouped ? ["Cadet", "Score", "Result"] : ["Cadet", "Session", "Score", "Result"]) : (grouped ? ["Test", "Score", "Result"] : ["Session", "Score", "Result"]);
+    const t = h("table", { class: "restable" }, h("thead", {}, h("tr", {}, ...head.map((x) => h("th", { text: x })))));
     const body = h("tbody");
     for (const r of rows) {
       const sc = r.scorecard, g = r.grading || {};
-      let detail = "", res = "", cls = "";
+      let detail = "", res = "";
       if (sc.test_type === "AFT") { detail = (sc.total_points != null ? sc.total_points + " pts" : "in progress"); res = g.result || ""; }
       else if (sc.ioct) {
         const bc = g.by_column || {};
         if (col && bc[col]) { detail = `${sc.ioct.elapsed || ""}  grade ${bc[col].grade}`; res = bc[col].result; }
         else { detail = `${sc.ioct.elapsed || ""}  M|C ${bc["M|C"] ? bc["M|C"].grade : "-"} · F ${bc.F ? bc.F.grade : "-"}`; res = (bc["M|C"] && bc.F) ? (bc["M|C"].result === bc.F.result ? bc["M|C"].result : "see grade") : ""; }
       }
-      cls = res === "PASS" ? "pass" : res === "FAIL" ? "fail" : "";
-      const note = r.status === "ENTERED" ? " (draft)" : r.status === "SUPERSEDED" ? " (replaced)" : "";
+      const cls = res === "PASS" ? "pass" : res === "FAIL" ? "fail" : "";
+      const note = r.status === "ENTERED" ? "draft" : r.status === "SUPERSEDED" ? "replaced" : r.status.toLowerCase();
+      const open = h("button", { type: "button", class: "rowbtn", text: showName ? (sc.cadet_name || "") : `${sc.test_type} ${sc.session_date}` });
+      open.addEventListener("click", () => onOpen(r));
       const cells = [];
-      if (showName) cells.push(h("td", { text: sc.cadet_name || "" }));
-      cells.push(h("td", { text: sc.test_type }), h("td", {}, h("span", { class: "pill", text: r.status + note })), h("td", { text: detail }), h("td", { class: cls, text: res }));
-      body.append(h("tr", {}, ...cells));
+      if (showName) cells.push(h("td", {}, open));
+      if (!grouped) cells.push(h("td", {}, showName ? "" : open, h("span", { class: "small", text: (showName ? sc.test_type + " " : "") + sessLabel(sc) })));
+      else if (!showName) cells.push(h("td", {}, open));
+      cells.push(h("td", {}, detail, h("br"), h("span", { class: "pill", text: note })), h("td", { class: cls, text: res }));
+      const tr = h("tr", { class: r.status === "SUPERSEDED" ? "old" : "" }, ...cells);
+      body.append(tr);
     }
-    t.append(body); return t;
+    t.append(body); return h("div", { class: "tablewrap" }, t);
   }
+
+  // One score in full: what the cadet got in each event. The OIC can change it.
+  function openScore(row, reload) {
+    const sc = row.scorecard, g = row.grading || {};
+    const ov = h("div", { class: "overlay", role: "dialog", "aria-modal": "true" }), panel = h("div", { class: "panel" });
+    ov.append(panel); document.body.append(ov);
+    const close = () => ov.remove();
+    const canEdit = S.role === "oic" && sc.test_type === "AFT" && row.status !== "SUPERSEDED";
+    const compOf = (c) => (sc.components || []).find((k) => k.component === c);
+
+    const head = () => {
+      panel.textContent = "";
+      panel.append(h("h2", { text: `${sc.cadet_name || "Your score"}: ${sc.test_type}` }),
+        h("div", { class: "pillrow" }, h("span", { class: "pill big", text: sessLabel(sc) }), h("span", { class: "pill big", text: row.status + (row.status === "SUPERSEDED" ? " (replaced)" : "") })));
+    };
+    const view = () => {
+      head();
+      if (sc.test_type === "AFT") {
+        const t = h("table", {}, h("thead", {}, h("tr", {}, ...["Event", "Result", "Points"].map((x) => h("th", { text: x })))));
+        const b = h("tbody");
+        for (const [code] of EVENTS) { const k = compOf(code); b.append(h("tr", {}, h("td", { text: SHORT_EVT[code] }), h("td", { text: k ? k.raw_value : "-" }), h("td", { class: "pts", text: k && k.points != null ? k.points : "" }))); }
+        t.append(b); panel.append(h("div", { class: "tablewrap" }, t));
+        panel.append(h("p", { class: "sub", text: sc.total_points != null ? `Total ${sc.total_points} points: ${g.result || ""}${g.failed_events && g.failed_events.length ? ". Below 60 on: " + g.failed_events.join(", ") : ""}` : "Not finished: some events are missing." }));
+      } else {
+        const bc = g.by_column || {};
+        panel.append(h("p", { text: `Run time ${sc.ioct ? sc.ioct.elapsed : "none"}` }),
+          h("p", { class: "sub", text: `Men (M|C): grade ${bc["M|C"] ? bc["M|C"].grade + ", " + bc["M|C"].result : "-"}. Women (F): grade ${bc.F ? bc.F.grade + ", " + bc.F.result : "-"}.` }),
+          h("p", { class: "hint", text: "An IOCT time comes from the gate reads, so it cannot be typed over. To redo a run, start a new IOCT session and run the cadet again." }));
+      }
+      const row2 = h("div", { class: "srow" });
+      if (canEdit) { const e = h("button", { type: "button", class: "btn", text: "Edit this score" }); e.addEventListener("click", edit); row2.append(e); }
+      const c = h("button", { type: "button", class: "btn ghost", text: "Close" }); c.addEventListener("click", close); row2.append(c);
+      panel.append(row2);
+    };
+    const edit = async () => {
+      await loadStandards(); head();
+      panel.append(h("p", { class: "sub", text: "Change what is wrong. The original score is kept unchanged and marked replaced; this saves a new one. Every event is scored again using the sex and age group you pick here." }));
+      const sexes = h("div", { class: "choice" }, ...["male", "female"].map((s) => h("label", {}, h("input", { type: "radio", name: "esx", value: s }), " " + (s === "male" ? "Male" : "Female"))));
+      const age = h("select", { id: "eage" }, h("option", { value: "", text: "Choose…" }), ...S.standards.age_groups.map((a) => h("option", { value: a, text: a })));
+      const reason = h("input", { id: "ereason", maxlength: "120", placeholder: "Why is this being changed? (required)", autocomplete: "off" });
+      const inputs = {};
+      const t = h("table", {}, h("thead", {}, h("tr", {}, ...["Event", "Result"].map((x) => h("th", { text: x })))));
+      const b = h("tbody");
+      for (const [code, , unit] of EVENTS) { const k = compOf(code); const inp = h("input", { autocomplete: "off", placeholder: unit, value: k ? k.raw_value : "", inputmode: code === "MDL" || code === "HRP" ? "numeric" : "text" }); inputs[code] = inp; b.append(h("tr", {}, h("td", { text: SHORT_EVT[code] }), h("td", {}, inp))); }
+      t.append(b);
+      const out = h("div", { id: "ovOut", class: "banner", role: "status" });
+      const save = h("button", { type: "button", class: "btn", text: "Save the changes" }), back = h("button", { type: "button", class: "btn ghost", text: "Cancel" });
+      back.addEventListener("click", view);
+      save.addEventListener("click", async () => {
+        const sx = panel.querySelector("input[name=esx]:checked"), ag = age.value, why = reason.value.trim();
+        if (!sx || !ag) return banner("ovOut", "bad", "Pick the cadet's sex and age group", []);
+        if (!why) return banner("ovOut", "bad", "Say why this is being changed", []);
+        const missing = EVENTS.filter(([k]) => !inputs[k].value.trim()).map(([k]) => SHORT_EVT[k]);
+        if (missing.length) return banner("ovOut", "bad", "Every event needs a result", ["Missing: " + missing.join(", ")]);
+        save.disabled = true; banner("ovOut", "info", "Saving…", []);
+        try {
+          let id = row.event_id;
+          // A correction never changes the original: it is marked replaced and a new score points back at it.
+          if (row.status !== "ENTERED") id = (await api("POST", `/v0/events/${id}/supersede`, { reason: why })).new_event_id;
+          const col = S.standards.column_for_sex[sx.value];
+          for (const [k] of EVENTS) await api("POST", `/v0/events/${id}/components`, { component: k, raw_value: inputs[k].value.trim(), age_group: ag, scoring_column: col });
+          await api("POST", `/v0/events/${id}/submit`);
+          close(); if (reload) reload();
+        } catch (e) { banner("ovOut", "bad", "Not saved", [e.message + " If a correction was already opened, open the cadet's score again and finish it."]); save.disabled = false; if (reload) reload(); }
+      });
+      panel.append(h("label", {}, "Sex"), sexes, h("label", {}, "Age group", age), h("label", {}, "Reason", reason), h("div", { class: "tablewrap" }, t), out, h("div", { class: "srow" }, save, back));
+    };
+    view();
+  }
+
   async function loadResults(outId, tableId, col, showName, testType) {
     banner(outId, "info", "Loading…", []);
     try {
+      await loadStandards();
       const r = await api("GET", "/v0/results" + (testType ? "?test_type=" + testType : ""));
-      banner(outId, "ok", `${r.count} score${r.count === 1 ? "" : "s"}`, [r.scope === "all" ? "You can see everyone's scores." : "You can see only your own scores."]);
-      const host = $(tableId); host.textContent = ""; host.append(resultsTable(r.results, col, showName));
+      banner(outId, "ok", `${r.count} score${r.count === 1 ? "" : "s"}`, [r.scope === "all" ? "You can see everyone's scores. Tap a name to open a score." : "You can see only your own scores. Tap one to open it."]);
+      showResults($(tableId), r.results, { col, showName, latest: !showName, reload: () => loadResults(outId, tableId, col, showName, testType) });
     } catch (e) { banner(outId, "bad", "Could not load", [e.message]); }
   }
   $("refreshAll").addEventListener("click", () => loadResults("resOut", "resTable", S.standards ? S.standards.column_for_sex[$("rsex").value] : null, true, null));
@@ -615,7 +731,8 @@
       h("span", { class: "pill big", text: c.company || "No company set" }), h("span", { class: "pill big", text: c.class_year ? "Class of " + c.class_year : "No class year" }),
       h("span", { class: "pill big " + (c.active ? "ok" : "warn"), text: c.active ? "Active" : "Inactive" })));
     if (own) host.append(h("p", { class: "sub", text: "This is your own record. Nobody else's is shown to you." }));
-    host.append(h("h3", { text: "Fitness results" }), resultsTable(r.results, null, false));
+    const box = h("div", {}); host.append(h("h3", { text: "Fitness results" }), box);
+    showResults(box, r.results, { col: null, showName: false, latest: true, reload: () => openProfile(own ? null : c.cadet_id) });
     const a = r.attendance.summary, n = a.PRESENT + a.LATE + a.ABSENT + a.EXCUSED;
     host.append(h("h3", { text: "Attendance" }));
     if (!n) host.append(h("p", { class: "sub", text: "No attendance recorded yet." }));
