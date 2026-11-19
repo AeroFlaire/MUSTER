@@ -82,7 +82,7 @@ th { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(-
 .scanner .paste { display:flex; gap:8px; margin-top:8px; } .scanner .paste input { margin:0; }
 .hood { max-width:980px; margin:0 auto 30px; padding:0 18px; color:#b9c8de; font-size:13px; }
 .hood pre { background:#08111f; color:#8ff0a4; padding:12px; border-radius:8px; white-space:pre-wrap; max-height:220px; overflow:auto; font-size:12px; }
-@media (max-width:560px) { .hero h1 { font-size:26px; } header { padding:12px; } }
+@media (max-width:560px) { .hero h1 { font-size:26px; } header { padding:12px; padding-top:calc(12px + env(safe-area-inset-top)); padding-left:calc(12px + env(safe-area-inset-left)); padding-right:calc(12px + env(safe-area-inset-right)); } }
 .whoami[hidden] { display:none; }
 .slots { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
 .slot { padding:8px 12px; border-radius:999px; background:var(--soft); border:1px solid var(--line); font-size:14px; }
@@ -116,3 +116,13 @@ input[type=search] { -webkit-appearance:none; }
 .sessbar .sname { font-weight:700; }
 .sessbar details { margin-top:6px; } .sessbar summary { cursor:pointer; color:#1a5fa0; }
 .sessbar .srow { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; } .sessbar input { flex:1 1 160px; }
+
+/* The header stays at the top (below the phone's status bar) so Sign out is always in reach. */
+header { position:sticky; top:0; z-index:20; background:#0b1a2e; border-bottom:1px solid rgba(255,255,255,.08); }
+/* The five AFT events wrap onto rows instead of running off the screen. */
+.tabs.evt { flex-wrap:wrap; }
+.tabs.evt button { flex:1 1 30%; padding:9px 8px; font-size:14px; line-height:1.25; text-align:center; }
+.chips { flex-wrap:wrap; }
+
+.whoami .btn.ghost { white-space:nowrap; }
+@media (max-width:560px) { .brand { font-size:18px; } .whoami { font-size:12px; gap:8px; } .whoami .btn.small { padding:8px 12px; } .tabs.evt button { flex:1 1 28%; } }

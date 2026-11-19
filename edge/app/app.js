@@ -446,7 +446,8 @@
 
   function doneCount(ev) { return B.cadets.filter((c) => c.points[ev] != null).length; }
   function updateTabs() {
-    for (const [code, label] of EVENTS) if (B.tabs[code]) B.tabs[code].textContent = `${label} ${doneCount(code)}/${B.cadets.length}`;
+    const SHORT = { MDL: "Deadlift", HRP: "Push-ups", SDC: "Sprint", PLK: "Plank", "2MR": "2-mile" };
+    for (const [code] of EVENTS) if (B.tabs[code]) B.tabs[code].textContent = `${SHORT[code]} ${doneCount(code)}/${B.cadets.length}`;
     document.querySelectorAll("#b-chips button").forEach((b, i) => { const c = B.cadets[i]; b.textContent = `${c.name} ${EVENTS.filter(([k]) => c.points[k] != null).length}/5`; });
   }
   function renderGrade() {
