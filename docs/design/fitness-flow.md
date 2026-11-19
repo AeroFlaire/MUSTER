@@ -20,8 +20,8 @@ ENTERED ──submit──▶ SUBMITTED ──cadet signs──▶ SIGNED ──
 | Send to compiler | Grader (optionally signs) | `fitness.submit` |
 | Show + sign | Score compiler + cadet CAC | `fitness.request_cadet_challenge`, `fitness.accept` |
 | Refuse to sign | Score compiler | `fitness.dispute` |
-| Fix before signing | OIC | `fitness.reopen` |
-| Fix after signing | OIC | `fitness.supersede` |
+| Send a disputed card back (edits in place, not used for corrections) | OIC | `fitness.reopen` |
+| Correct a saved score (submitted, disputed, signed or exported) | OIC | `fitness.supersede` (original kept unchanged, new event points back at it) |
 | Receipt | Score compiler | `receipts.issue` |
 | Send to DPE/AMS | OIC | `export.export_signed` |
 

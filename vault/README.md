@@ -89,7 +89,7 @@ event = ioct.active_event_for_tag(session, "TAG-017")       # cadet taps band at
 ```
 
 Cadet disagrees → `fitness.dispute` → OIC `fitness.reopen` → fix → resubmit.
-Already signed and wrong → OIC `fitness.supersede` (old score kept, new one linked).
+Submitted, disputed or signed and wrong → OIC `fitness.supersede` (old score kept unchanged and marked SUPERSEDED, new one linked to it). This is the OIC's correction path. `fitness.reopen` still sends a DISPUTED card back, but it edits in place, so the app does not use it for corrections.
 
 ---
 

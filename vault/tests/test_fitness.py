@@ -113,6 +113,63 @@ def test_supersede_keeps_old_and_links_new(world):
     assert fitness.verify_event(world.conn, old)["ok"]   # old signature still valid
 
 
+def _components(world, ev):
+    return [tuple(r) for r in world.conn.execute(
+        "SELECT component, raw_value, points, entered_by, entered_at FROM fitness_component "
+        "WHERE event_id = ? ORDER BY component", (ev,))]
+
+
+def test_oic_corrects_a_submitted_score_without_touching_the_original(world):
+    """Advisor rule (17-Nov): the OIC corrects by adding a new entry that points to the
+    original, and the original never changes. Signing is not live yet, so this has to work
+    on a SUBMITTED score, not only a SIGNED one."""
+    old = submitted_aft(world)
+    before_row = tuple(fitness.get_event(world.conn, old))
+    before_comps = _components(world, old)
+    new = fitness.supersede(world.conn, world.oic, old, "Wrong deadlift weight")
+    fitness.record_component(world.conn, world.oic, new, "MDL", "320", 98)
+    # the original: same results, same everything except its status
+    assert _components(world, old) == before_comps
+    after_row = dict(fitness.get_event(world.conn, old))
+    assert after_row["status"] == "SUPERSEDED"
+    assert {k: v for k, v in after_row.items() if k != "status"} == \
+        {k: v for k, v in dict(zip(after_row.keys(), before_row)).items() if k != "status"}
+    # the new event points back at it and holds the fix
+    row = fitness.get_event(world.conn, new)
+    assert row["status"] == "ENTERED" and row["supersedes_event_id"] == old
+    mdl = [c for c in fitness.scorecard(world.conn, new)["components"] if c["component"] == "MDL"]
+    assert mdl[0]["raw_value"] == "320"
+    fitness.submit(world.conn, world.grader, new)
+    assert fitness.verify_event(world.conn, old)["ok"]
+    assert fitness.verify_event(world.conn, new)["ok"]
+    assert audit.verify(world.conn).ok
+
+
+def test_a_disputed_score_can_be_corrected_the_same_way(world):
+    old = submitted_aft(world)
+    fitness.dispute(world.conn, world.station, old, "Cadet says the plank time is wrong")
+    new = fitness.supersede(world.conn, world.oic, old, "Plank re-timed")
+    assert fitness.get_event(world.conn, old)["status"] == "SUPERSEDED"
+    assert fitness.get_event(world.conn, new)["supersedes_event_id"] == old
+
+
+def test_a_draft_or_an_already_replaced_score_cannot_be_superseded(world):
+    draft = entered_aft(world)
+    with pytest.raises(InvalidTransition):
+        fitness.supersede(world.conn, world.oic, draft, "too early")
+    fitness.submit(world.conn, world.grader, draft)
+    fitness.supersede(world.conn, world.oic, draft, "fix")
+    with pytest.raises(InvalidTransition):
+        fitness.supersede(world.conn, world.oic, draft, "again")
+
+
+def test_only_the_oic_can_supersede(world):
+    ev = submitted_aft(world)
+    with pytest.raises(PermissionDenied):
+        fitness.supersede(world.conn, world.grader, ev, "grader trying to fix it")
+    assert fitness.get_event(world.conn, ev)["status"] == "SUBMITTED"
+
+
 def test_direct_db_edit_after_signing_is_detected(world):
     """Someone edits points straight in SQL, going around the Vault code."""
     ev = signed_aft(world)

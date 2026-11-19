@@ -4,9 +4,9 @@ What each role may do to a score, checked against a real Vault database:
 
   grader   can enter and re-enter results while the scorecard is still ENTERED, and can submit.
            After submit the original is locked to them. They cannot reopen or supersede.
-  oic      can correct a SIGNED score only through supersede: the original is kept (marked
-           SUPERSEDED) and a NEW event points back at it. The OIC edits the new event, never the
-           original. A SIGNED score cannot be reopened.
+  oic      corrects a SUBMITTED or SIGNED score only through supersede: the original is kept
+           (marked SUPERSEDED) and a NEW event points back at it. The OIC edits the new event,
+           never the original. A SIGNED score cannot be reopened.
   cadet    can only view. Every write returns 403. They see only their own scores.
   grader and oic see every score (GET /v0/results).
 
@@ -190,6 +190,31 @@ class RolePermissionsTest(unittest.TestCase):
                          ["raw_value"], "320")
         # and still the original has not moved
         self.assertEqual(self.components_of(eid), original)
+        self.assert_audit_chain_ok()
+
+    def test_oic_corrects_a_submitted_score_by_superseding_it_and_the_original_never_moves(self):
+        """What the app does (signing is not live, so scores stop at SUBMITTED)."""
+        eid = self.open_event()
+        self.enter_all(eid)
+        self.assertEqual(self.post(f"/v0/events/{eid}/submit").status_code, 200)
+        original_row = self.q("SELECT * FROM fitness_event WHERE id = ?", eid)[0]
+        original = self.q("SELECT * FROM fitness_component WHERE event_id = ? ORDER BY component", eid)
+        r = self.post(f"/v0/events/{eid}/supersede", "oic", {"reason": "Wrong deadlift weight"})
+        self.assertEqual(r.status_code, 201, r.get_json())
+        new_id = r.get_json()["new_event_id"]
+        self.assertEqual(self.comp(new_id, "MDL", "320", "oic").status_code, 200)
+        self.assertEqual(self.post(f"/v0/events/{new_id}/submit", "oic").status_code, 200)
+        # the original row: only its status changed; its results are byte-for-byte the same
+        after = self.q("SELECT * FROM fitness_event WHERE id = ?", eid)[0]
+        self.assertEqual(after.pop("status"), "SUPERSEDED")
+        original_row.pop("status")
+        self.assertEqual(after, original_row)
+        self.assertEqual(self.q("SELECT * FROM fitness_component WHERE event_id = ? "
+                                "ORDER BY component", eid), original)
+        self.assertEqual(self.q("SELECT supersedes_event_id FROM fitness_event WHERE id = ?",
+                                new_id)[0]["supersedes_event_id"], eid)
+        # a grader still cannot do this, and nobody can edit the original afterwards
+        self.assertEqual(self.comp(eid, "MDL", "200", "oic").status_code, 409)
         self.assert_audit_chain_ok()
 
     def test_the_oic_cannot_change_the_original_after_it_is_superseded_or_signed(self):

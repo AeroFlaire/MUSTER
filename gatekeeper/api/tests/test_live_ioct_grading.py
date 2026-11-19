@@ -166,12 +166,14 @@ class IoctGradingAndCorrectionsTest(unittest.TestCase):
             self.assertEqual(self.post(f"/v0/events/{eid}/reopen", role,
                                        {"note": "x"}).status_code, 403, role)
 
-    def test_supersede_needs_a_reason_and_a_signed_score(self):
+    def test_supersede_needs_a_reason_and_a_submitted_score(self):
         eid = self.timed_run()
+        r = self.post(f"/v0/events/{eid}/supersede", "oic", {"reason": "x"})
+        self.assertEqual(r.status_code, 409, r.get_json())  # still a draft (ENTERED)
         self.post(f"/v0/events/{eid}/submit")
         self.assertEqual(self.post(f"/v0/events/{eid}/supersede", "oic", {}).status_code, 400)
         r = self.post(f"/v0/events/{eid}/supersede", "oic", {"reason": "x"})
-        self.assertEqual(r.status_code, 409, r.get_json())  # still SUBMITTED: use reopen
+        self.assertEqual(r.status_code, 201, r.get_json())  # submitted: corrected, original kept
 
     def test_reopen_sends_a_submitted_run_back_with_one_audit_entry(self):
         eid = self.timed_run()

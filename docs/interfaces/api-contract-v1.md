@@ -338,7 +338,7 @@ Response 200 (AFT event 11 shown):
 }
 ```
 
-- POST /v0/events/{event_id}/supersede with body `{"reason": "..."}` (oic, admin). Only from SIGNED or EXPORTED. The old event stays as SUPERSEDED, and a new ENTERED event is opened with the old components copied in. Response 201:
+- POST /v0/events/{event_id}/supersede with body `{"reason": "..."}` (oic, admin). From SUBMITTED, DISPUTED, SIGNED or EXPORTED (a draft that is still ENTERED is 409; the grader can still change it). This is how the OIC corrects any saved score: the original row and its results never change. The old event stays as SUPERSEDED, and a new ENTERED event is opened with the old components copied in. Response 201:
 
 ```json
 {
