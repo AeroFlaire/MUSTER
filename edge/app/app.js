@@ -375,9 +375,39 @@
       B.cadets.push({ name: B.pending.name, eventId: ev.event_id, sex: sexEl.value, age, col: S.standards.column_for_sex[sexEl.value], values: {}, points: {}, submitted: false, result: null });
       B.pending = null;                                        // the ID is not kept once the scorecard is open
       $("b-addbox").hidden = true; $("b-verify").hidden = true;
-    } catch (e) { banner("b-setupOut", "bad", "Could not add this cadet", [e.message]); }
+    } catch (e) {
+      if (/already has a live score/.test(e.message)) offerEdit(sexEl.value, age);
+      else banner("b-setupOut", "bad", "Could not add this cadet", [e.message]);
+    }
     btn.disabled = false; drawSlots();
   });
+
+  // A cadet who already has a score this session (a retake, or a correction): the OIC reopens it,
+  // the old values stay in the audit log, the grader changes what is wrong and submits again.
+  function offerEdit(sex, age) {
+    const box = $("b-setupOut"); banner("b-setupOut", "bad", "This cadet already has a score in this session",
+      [S.role === "oic" ? "You can edit it: it is reopened, the old values are kept in the audit log." : "Only the OIC can edit a saved score."]);
+    if (S.role !== "oic") return;
+    const b = h("button", { type: "button", class: "btn", text: "Edit this score" });
+    b.addEventListener("click", () => editExisting(sex, age, b));
+    box.append(h("p", {}, b));
+  }
+  async function editExisting(sex, age, btn) {
+    btn.disabled = true; const who = B.pending.name;
+    try {
+      const all = await api("GET", "/v0/results?test_type=AFT");
+      const hit = all.results.filter((r) => r.scorecard.cadet_name === who && r.scorecard.session_id === AFT_SESSION && r.status !== "SUPERSEDED").pop();
+      if (!hit) throw new Error("Could not find that score.");
+      let id = hit.event_id;
+      if (hit.status === "SUBMITTED" || hit.status === "DISPUTED") await api("POST", `/v0/events/${id}/reopen`, { note: "Retake or correction from the grading screen" });
+      else if (hit.status === "SIGNED" || hit.status === "EXPORTED") id = (await api("POST", `/v0/events/${id}/supersede`, { reason: "Retake or correction from the grading screen" })).new_event_id;
+      const c = { name: who, eventId: id, sex, age, col: S.standards.column_for_sex[sex], values: {}, points: {}, submitted: false, result: null, edited: true };
+      for (const k of hit.scorecard.components) { c.values[k.component] = k.raw_value; c.points[k.component] = k.points; }
+      B.cadets.push(c); B.pending = null; $("b-addbox").hidden = true; $("b-verify").hidden = true;
+      banner("b-setupOut", "ok", who + " reopened", ["Their saved results are loaded. Change what is wrong, then submit."]);
+    } catch (e) { banner("b-setupOut", "bad", "Could not edit this score", [e.message]); }
+    drawSlots();
+  }
   $("b-begin").addEventListener("click", () => {
     if (!B.cadets.length) return;
     batchScanner.stop(); $("b-setup").hidden = true; $("b-grade").hidden = false; B.event = "MDL"; B.sel = 0; renderGrade();
